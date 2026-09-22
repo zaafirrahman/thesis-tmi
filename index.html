@@ -109,13 +109,45 @@
 
   .navbar {
     font-family: 'IBM Plex Mono', ui-monospace, monospace;
-    font-size: 0.72rem;
-    letter-spacing: 0.02em;
     color: var(--ink-faint);
     padding-bottom: 10px;
     margin-bottom: 14px;
     border-bottom: 1px solid var(--line-soft);
+
+    display: flex;
+    align-items: center;
+    gap: 12px;
   }
+
+  .nav-logo {
+    height: 42px;
+    width: auto;
+    object-fit: contain;
+  }
+
+  .nav-text {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    text-align: right;
+    line-height: 1.15;
+    letter-spacing: 0.04em;
+    font-size: 0.72rem;
+  }
+
+  /* .nav-text div:first-child {
+    font-size: 0.62rem;
+  }
+
+  .nav-text div:nth-child(2) {
+    font-size: 0.82rem;
+    font-weight: 600;
+  }
+
+  .nav-text div:last-child {
+    font-size: 0.62rem;
+  } */
 
   /* ---------- Masthead ---------- */
   .masthead {
@@ -673,7 +705,14 @@
 <body>
 <div class="wrap">
 
-  <div class="navbar">Program Magister (S2) Teknik dan Manajemen Industri &middot; Institut Teknologi Bandung</div>
+  <div class="navbar">
+    <img src="catalog.png" alt="Catalog" class="nav-logo">
+    <div class="nav-text">
+      <div>Program Studi Magister (S2)</div>
+      <div>Teknik dan Manajemen Industri</div>
+      <div>Institut Teknologi Bandung</div>
+    </div>
+  </div>
 
   <header class="masthead">
     <div>
