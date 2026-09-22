@@ -802,6 +802,7 @@
   var GROUPS = raw.groups;
   var THESES = raw.theses;
   var UNCLASSIFIED = { slug: 'tidak_terklasifikasi', label: 'Tidak Terklasifikasi', abbr: 'Unclassified' };
+GROUPS.push(UNCLASSIFIED);
 var groupBySlug = {};
 GROUPS.forEach(g => { groupBySlug[g.slug] = g; });
 var TABS_GROUPS = GROUPS;
