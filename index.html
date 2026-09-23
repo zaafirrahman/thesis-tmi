@@ -410,8 +410,14 @@
   .panel {
     position: sticky;
     top: 18px;
+    max-height: calc(100vh - 36px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
   }
-  @media (max-width: 820px) { .panel { position: static; } }
+  @media (max-width: 820px) {
+    .panel { position: static; max-height: none; overflow-y: visible; }
+  }
 
   .panel-block {
     border: 1px solid var(--line);
@@ -546,6 +552,69 @@
     margin-bottom: 6px;
   }
 
+  .kwm-panel {
+    border-top: 1px dashed var(--line);
+    padding-top: 10px;
+    margin-top: 10px;
+  }
+  .kwm-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: none;
+    border: none;
+    padding: 0;
+    margin-top: 4px;
+    font-family: inherit;
+    font-size: 0.76rem;
+    color: var(--focus);
+    cursor: pointer;
+  }
+  .kwm-toggle svg {
+    width: 11px;
+    height: 11px;
+    transition: transform 0.15s ease;
+  }
+  .kwm-panel.open .kwm-toggle svg { transform: rotate(90deg); }
+  .kwm-body { display: none; margin-top: 10px; }
+  .kwm-panel.open .kwm-body { display: block; }
+  .kwm-note {
+    font-size: 0.74rem;
+    color: var(--ink-faint);
+    line-height: 1.45;
+    margin: 0 0 10px;
+  }
+  .kwm-section-label {
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ink-faint);
+    margin: 0 0 6px;
+  }
+  .kwm-section-label:not(:first-child) { margin-top: 12px; }
+  .kwm-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+  }
+  .kwm-chip {
+    font-size: 0.71rem;
+    padding: 3px 9px;
+    border-radius: 20px;
+    border: 1px solid transparent;
+    white-space: nowrap;
+  }
+  .kwm-chip.strong {
+    background: var(--chip-bg);
+    color: var(--ink);
+    font-weight: 500;
+  }
+  .kwm-chip.weak {
+    background: transparent;
+    color: var(--ink-faint);
+    border-color: var(--line);
+  }
+
   /* ---------- List ---------- */
   .list-meta {
     font-size: 0.8rem;
@@ -597,17 +666,47 @@
   .mpill {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
-    font-size: 0.7rem;
-    padding: 3px 9px 3px 7px;
-    border-radius: 20px;
-    border: 1px solid transparent;
+    font-size: 0.68rem;
+    font-family: 'IBM Plex Mono', monospace;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    padding: 3px 8px;
+    border-radius: 5px;
+    border: 1.5px solid transparent;
     white-space: nowrap;
   }
   .mpill .sw { width: 6px; height: 6px; border-radius: 50%; flex: none; }
-  .mpill.role-utama { font-weight: 500; }
-  .mpill.role-sekunder { opacity: 0.82; border-style: dashed; }
-  .mpill .role-tag { opacity: 0.65; font-size: 0.65rem; }
+  .mpill.role-utama { color: var(--paper-raised); }
+  .mpill.role-sekunder { background: transparent; }
+
+  .list-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+  }
+  .list-head .list-meta { margin-bottom: 0; }
+  .role-legend {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .role-legend .mpill {
+    font-size: 0.64rem;
+    padding: 3px 8px;
+  }
+  .role-legend .mpill.role-utama {
+    background: var(--ink-faint);
+    color: var(--paper-raised);
+    border-color: var(--ink-faint);
+  }
+  .role-legend .mpill.role-sekunder {
+    background: transparent;
+    color: var(--ink-faint);
+    border-color: var(--ink-faint);
+  }
   .review-pill {
     display: inline-flex;
     align-items: center;
@@ -717,7 +816,7 @@
   <header class="masthead">
     <div>
       <h1>Katalog Tesis TMI</h1>
-      <p class="dek">Kumpulan judul tesis, dipetakan otomatis ke kelompok keilmuan berdasarkan kata kunci. Banyak judul melintasi lebih dari satu kelompok &mdash; dibuat untuk menelusuri kecenderungan topik sebelum menentukan preferensi penelitian.</p>
+      <p class="dek">Kumpulan judul tesis, dipetakan otomatis ke kelompok keilmuan berdasarkan kedekatan kata kunci &mdash; <em>bukan</em> penilaian resmi dari tiap kelompok keahlian. Banyak judul melintasi lebih dari satu kelompok &mdash; dibuat untuk menelusuri kecenderungan topik sebelum menentukan preferensi penelitian.</p>
     </div>
     <div class="meta">
       <strong id="totalCount">—</strong>
@@ -765,7 +864,13 @@
     </aside>
 
     <main>
-      <div class="list-meta" id="listMeta"></div>
+      <div class="list-head">
+        <div class="list-meta" id="listMeta"></div>
+        <div class="role-legend">
+          <span class="mpill role-utama">utama</span>
+          <span class="mpill role-sekunder">kedua</span>
+        </div>
+      </div>
       <div id="cardList"></div>
       <div id="emptyState" class="empty-state" style="display:none;">
         <strong>Tidak ada judul yang cocok.</strong>
@@ -778,7 +883,7 @@
   </div>
 
   <footer>
-    Setiap judul dapat memiliki kelompok utama dan kelompok kedua sekaligus &mdash; garis tepi kartu menunjukkan kedua warna itu ketika keduanya ada. Skor menunjukkan jumlah penanda kata kunci yang cocok saat klasifikasi otomatis dijalankan, bukan penilaian kualitas atau kelayakan topik. Judul bertanda &ldquo;perlu ditinjau ulang&rdquo; adalah yang skor kelompok utama dan keduanya berdekatan, sehingga klasifikasinya belum tegas dan sebaiknya dicek manual. Klik judul untuk membuka halaman Digilib ITB &mdash; tautannya ditebak otomatis dari judul, jadi bisa 404 untuk sebagian judul terbaru yang URL aslinya menyertakan NIM penulis (kami tidak punya data NIM). Kalau itu terjadi, pakai ikon kaca pembesar di sebelah judul untuk mencari halaman aslinya lewat Google. Sumber: berkas CSV kelompok keilmuan yang diunggah.
+    Setiap judul dapat memiliki kelompok utama dan kelompok kedua sekaligus &mdash; garis tepi kartu menunjukkan kedua warna itu ketika keduanya ada. Klasifikasi kelompok di halaman ini dihasilkan otomatis dari kedekatan kata kunci pada judul dengan daftar kata kunci tiap kelompok keilmuan, <strong>bukan</strong> penilaian resmi dari KK yang bersangkutan &mdash; klik sebuah kelompok lalu &ldquo;Lihat kata kunci pencocokan&rdquo; untuk lihat daftar lengkapnya. Skor menunjukkan jumlah penanda kata kunci yang cocok saat klasifikasi otomatis dijalankan, bukan penilaian kualitas atau kelayakan topik. Judul bertanda &ldquo;perlu ditinjau ulang&rdquo; adalah yang skor kelompok utama dan keduanya berdekatan, sehingga klasifikasinya belum tegas dan sebaiknya dicek manual. Klik judul untuk membuka halaman Digilib ITB &mdash; tautannya ditebak otomatis dari judul, jadi bisa 404 untuk sebagian judul terbaru yang URL aslinya menyertakan NIM penulis (kami tidak punya data NIM). Kalau itu terjadi, pakai ikon kaca pembesar di sebelah judul untuk mencari halaman aslinya lewat Google. Sumber: berkas CSV kelompok keilmuan yang diunggah.
   </footer>
 
 </div>
@@ -862,6 +967,31 @@ var TABS_GROUPS = GROUPS;
         'Sistem Pendukung Keputusan — model matematis &amp; AI, DSS adaptif real-time, sistem multi-agen',
         'Arah riset: digital health, sistem informasi hijau, IoT, business analytics berbasis AI'
       ]
+    }
+  };
+
+  // ---------- keyword classifier reference (dari SPECIALIZATIONS di script Python) ----------
+  // slug di sini disesuaikan dengan slug yang dipakai di data (raw.groups), bukan slug internal script.
+  var KEYWORD_MAP = {
+    sistem_manufaktur: {
+      strong: ['manufaktur', 'manufacturing', 'assembly', 'perakitan', 'CNC', 'machining', 'casting', 'foaming', 'injection molding', 'extruder', 'tooling', 'fixture', 'jig', 'layout pabrik', 'automasi', 'otomasi', 'robot', 'robotika', 'AGV', 'conveyor', 'quality control', 'pengendalian kualitas', 'SPC', 'six sigma', 'lean manufacturing', 'TPM', 'perawatan mesin', 'OEE', 'process improvement', 'optimasi proses', 'discrete event', 'product design', 'prototype', '3D printing', 'additive manufacturing', 'supply chain', 'rantai pasok', 'logistik', 'distribusi', 'inventory', 'persediaan', 'warehouse', 'gudang', 'material handling', 'forklift', 'nesting', 'cutting', 'scheduling', 'penjadwalan', 'sequencing', 'fleet management', 'transportation', 'peta kendali', 'control chart', 'sampling plan', 'rencana sampling', 'chemical milling', 'sheet metal forming'],
+      weak: ['produksi', 'pabrik', 'industri', 'produk', 'mesin', 'maintenance', 'reliability', 'simulasi', 'lean']
+    },
+    sistem_industri_rantai_nilai: {
+      strong: ['rantai nilai', 'value chain', 'nilai tambah', 'value stream', 'kompetitif', 'competitive', 'keunggulan bersaing', 'daya saing', 'business model', 'model bisnis', 'canvas', 'BMC', 'merger', 'akuisisi', 'divestasi', 'restrukturisasi', 'ESG', 'carbon', 'emisi', 'energi terbarukan', 'EBT', 'renewable', 'life cycle assessment', 'LCA', 'daur ulang', 'recycling', 'circular economy', 'ekonomi sirkular', 'risk management', 'manajemen risiko', 'mitigasi risiko', 'resilience', 'resiliensi', 'ketahanan', 'tangguh', 'stakeholder', 'pemangku kepentingan', 'CSR', 'corporate social', 'SNI', 'sertifikasi', 'akreditasi', 'sustainability', 'berkelanjutan', 'lingkungan', 'environmental', 'komoditas', 'komoditi', 'harga komoditas', 'fluktuasi harga', 'karet', 'getah karet', 'kelapa sawit', 'sawit', 'crude palm oil', 'CPO', 'kopi', 'kakao', 'batubara', 'nikel', 'timah', 'ekspor', 'impor', 'perdagangan internasional', 'neraca perdagangan', 'harga pasar', 'harga global', 'agroindustri', 'komoditas pertanian', 'rute kendaraan', 'vehicle routing', 'lokasi fasilitas', 'facility location', 'lokasi-alokasi fasilitas', 'jaringan distribusi', 'distribution network', 'rute kapal', 'penentuan rute', 'moda transportasi', 'transportasi umum', 'angkutan umum', 'angkutan', 'pelabuhan', 'terminal', 'bandara', 'penerbangan', 'stasiun pengisian', 'kendaraan listrik', 'electric vehicle', 'depot', 'jaringan hub', 'kapal', 'pelayaran', 'petikemas', 'kontainer', 'transshipment', 'wisatawan', 'pariwisata', 'wisata', 'sektor ekonomi', 'perekonomian', 'sektor pertanian', 'agribisnis', 'perkebunan', 'koperasi', 'tarif', 'willingness to pay', 'subsidi', 'pembangunan sektor', 'kebijaksanaan pembangunan', 'harga air', 'jasa telekomunikasi', 'depo', 'vehicle flow', 'fleet vehicle', 'pickup and delivery', 'cross-docking', 'fourth party logistic', 'sampah', 'limbah', 'persampahan', 'insinerator', 'dirgantara'],
+      weak: ['strategi', 'strategic', 'pertumbuhan', 'growth', 'scaling', 'ekspansi', 'kebijakan', 'policy', 'regulasi', 'regulation', 'pemerintah', 'ekonomi', 'economic', 'GDP', 'makroekonomi', 'industri 4.0', 'transformasi digital', 'digitalisasi', 'green', 'standar', 'standard', 'ISO', 'kendaraan', 'jaringan']
+    },
+    ergonomi_rekayasa_kerja: {
+      strong: ['ergonomi', 'ergonomic', 'human factors', 'faktor manusia', 'antropometri', 'anthropometry', 'postur', 'posture', 'beban kerja', 'workload', 'beban fisik', 'physical load', 'kelelahan', 'fatigue', 'nyeri', 'pain', 'MSDs', 'musculoskeletal', 'kerja fisik', 'physical work', 'aktivitas otot', 'EMG', 'thermal', 'kebisingan', 'noise', 'getaran', 'vibration', 'pencahayaan', 'lighting', 'illumination', 'K3', 'kecelakaan', 'accident', 'hazard', 'APD', 'PPE', 'helm', 'masker', 'pelindung', 'cognitive load', 'beban kognitif', 'mental workload', 'atensi', 'persepsi', 'perception', 'biomekanika', 'biomechanics', 'kinerja manusia', 'human performance', 'shift work', 'kerja shift', 'jam kerja', 'work schedule', 'prosthesis', 'prostetik', 'kaki palsu', 'tangan palsu', 'workplace design', 'desain tempat kerja', 'workstation', 'perilaku berkendara', 'perilaku berisiko', 'berkendara', 'mengemudi', 'pengemudi', 'pengendara', 'naturalistic riding', 'naturalistic driving', 'driving behavior', 'riding behavior', 'kewaspadaan', 'kantuk', 'sleepiness', 'alertness', 'situation awareness', 'performansi mengemudi', 'masinis', 'waktu reaksi', 'reaction time'],
+      weak: ['kenyamanan', 'comfort', 'keselamatan', 'safety', 'usability', 'user experience', 'UX', 'interface', 'antarmuka', 'attention', 'pilot', 'simulator']
+    },
+    manajemen_industri: {
+      strong: ['kepemimpinan', 'leadership', 'motivasi', 'motivation', 'SDM', 'human resource', 'talenta', 'talent', 'karyawan', 'pegawai', 'KPI', 'produktivitas', 'productivity', 'inovasi', 'innovation', 'ambidexterity', 'exploration', 'exploitation', 'learning organization', 'organisasi pembelajar', 'knowledge management', 'change management', 'budaya organisasi', 'decision making', 'pengambilan keputusan', 'multi-criteria', 'AHP', 'TOPSIS', 'project management', 'manajemen proyek', 'portofolio', 'quality management', 'TQM', 'ISO 9001', 'mutu', 'supply chain management', 'vendor', 'supplier', 'pemasok', 'pembelian', 'procurement', 'pengadaan', 'kontrak', 'UMKM', 'UKM', 'usaha kecil', 'startup', 'wirausaha', 'business process', 'BPM', 'proses bisnis', 'workflow', 'agile', 'scrum', 'kanban', 'continuous improvement', 'marketing', 'pemasaran', 'brand', 'merek', 'promosi', 'ROI', 'investasi'],
+      weak: ['manajemen', 'management', 'organisasi', 'organization', 'kinerja', 'performance', 'nilai', 'values', 'adopsi', 'adoption', 'perubahan', 'transformasi', 'strategi', 'strategy', 'competitive', 'persaingan', 'digital transformation', 'transformasi digital', 'digitalisasi', 'customer', 'pelanggan', 'konsumen', 'consumer', 'client', 'service', 'layanan', 'pelayanan', 'hospitality', 'financial', 'keuangan', 'biaya', 'cost', 'MSE', 'mean squared error', 'forecasting', 'peramalan', 'prediksi']
+    },
+    sistem_informasi_keputusan: {
+      strong: ['sistem informasi', 'information system', 'teknologi informasi', 'ERP', 'enterprise resource planning', 'SAP', 'Oracle', 'CRM', 'customer relationship management', 'supply chain management system', 'database', 'basis data', 'data warehouse', 'data mining', 'big data', 'business intelligence', 'kecerdasan buatan', 'artificial intelligence', 'deep learning', 'neural network', 'CNN', 'transformer', 'chatbot', 'virtual assistant', 'NLP', 'natural language', 'blockchain', 'smart contract', 'crypto', 'e-commerce', 'marketplace', 'komputasi awan', 'IoT', 'internet of things', 'cybersecurity', 'keamanan', 'encryption', 'authentication', 'TAM', 'UTAUT', 'technology adoption', 'acceptance', 'penerimaan', 'e-government', 'telemedicine', 'e-health', 'health informatics', 'fintech', 'e-wallet', 'pembayaran digital', 'ONNX', 'model deployment', 'decision support', 'dss', 'sistem pendukung keputusan', 'multi-agent', 'intelligent agent'],
+      weak: ['IT', 'software', 'aplikasi', 'platform', 'digital', 'komputer', 'analytics', 'analitik', 'AI', 'machine learning', 'LSTM', 'mobile', 'smartphone', 'android', 'iOS', 'app', 'web', 'website', 'portal', 'cloud', 'SaaS', 'PaaS', 'IaaS', 'sensor', 'embedded', 'UX', 'UI', 'user interface', 'usability', 'user experience', 'digital transformation', 'transformasi digital', 'social media', 'media sosial', 'payment', 'inference', 'deployment']
     }
   };
 
@@ -1102,6 +1232,7 @@ var TABS_GROUPS = GROUPS;
   var groupInfo = document.getElementById('groupInfo');
   var kwList = document.getElementById('kwList');
   var kkOverviewOpen = false;
+  var kwMatchOpen = false;
 
   function kkOverviewHtml(slug) {
     var ov = KK_OVERVIEW[slug];
@@ -1117,11 +1248,43 @@ var TABS_GROUPS = GROUPS;
     '</div>';
   }
 
+  function kwMatchHtml(slug) {
+    var km = KEYWORD_MAP[slug];
+    if (!km) return '';
+    var strongChips = km.strong.map(function (k) {
+      return '<span class="kwm-chip strong">' + escapeHtml(k) + '</span>';
+    }).join('');
+    var weakChips = km.weak.map(function (k) {
+      return '<span class="kwm-chip weak">' + escapeHtml(k) + '</span>';
+    }).join('');
+    return '<div class="kwm-panel' + (kwMatchOpen ? ' open' : '') + '">' +
+      '<button type="button" class="kwm-toggle" data-slug="' + slug + '">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>' +
+        (kwMatchOpen ? 'Sembunyikan kata kunci pencocokan' : 'Lihat kata kunci pencocokan') +
+      '</button>' +
+      '<div class="kwm-body">' +
+        '<p class="kwm-note">Ini bukan definisi resmi kelompok keilmuan &mdash; classifier otomatis cuma mencocokkan kata-kata di bawah ini yang muncul di judul. Penanda kuat lebih spesifik ke KK ini; penanda lemah lebih umum dan sering nyerempet ke kelompok lain, jadi kontribusinya ke skor lebih kecil.</p>' +
+        '<p class="kwm-section-label">Penanda kuat</p>' +
+        '<div class="kwm-chips">' + strongChips + '</div>' +
+        '<p class="kwm-section-label">Penanda lemah</p>' +
+        '<div class="kwm-chips">' + weakChips + '</div>' +
+      '</div>' +
+    '</div>';
+  }
+
   groupInfo.addEventListener('click', function (e) {
-    var btn = e.target.closest('.kko-toggle');
-    if (!btn) return;
-    kkOverviewOpen = !kkOverviewOpen;
-    renderPanel(getFiltered());
+    var kkoBtn = e.target.closest('.kko-toggle');
+    if (kkoBtn) {
+      kkOverviewOpen = !kkOverviewOpen;
+      renderPanel(getFiltered());
+      return;
+    }
+    var kwmBtn = e.target.closest('.kwm-toggle');
+    if (kwmBtn) {
+      kwMatchOpen = !kwMatchOpen;
+      renderPanel(getFiltered());
+      return;
+    }
   });
 
   function renderPanel(filteredList) {
@@ -1141,6 +1304,7 @@ var TABS_GROUPS = GROUPS;
             '<div class="rs"><b>' + utamaCounts[g.slug] + '</b><span>sebagai utama</span></div>' +
             '<div class="rs"><b>' + sekunderCounts[g.slug] + '</b><span>sebagai kedua</span></div>' +
           '</div>' +
+          kwMatchHtml(g.slug) +
           '<div class="legend-note">Klik tab &ldquo;Semua&rdquo; untuk kembali melihat seluruh koleksi.</div>';
       }
     } else if (state.filterType === 'multi') {
@@ -1201,11 +1365,10 @@ var TABS_GROUPS = GROUPS;
     return t.memberships.map(function (m) {
       var g = groupBySlug[m.slug];
       var style = m.role === 'utama'
-        ? 'background:var(--chip-bg);color:var(--g-' + g.slug + ');border-color:var(--g-' + g.slug + ')'
+        ? 'background:var(--g-' + g.slug + ');border-color:var(--g-' + g.slug + ')'
         : 'background:transparent;color:var(--g-' + g.slug + ');border-color:var(--g-' + g.slug + ')';
-      return '<span class="mpill role-' + m.role + '" title="' + escapeHtml(g.label) + '" style="' + style + '">' +
-        '<span class="sw" style="background:var(--g-' + g.slug + ')"></span>' +
-        g.abbr + '<span class="role-tag">· ' + roleLabel[m.role] + ' · ' + m.score + '</span>' +
+      return '<span class="mpill role-' + m.role + '" title="' + escapeHtml(g.label) + ' &middot; ' + roleLabel[m.role] + '" style="' + style + '">' +
+        g.abbr + ' &middot; ' + m.score +
         '</span>';
     }).join('');
   }
