@@ -1,0 +1,38 @@
+{
+  "name": "Katalog Tesis TMI",
+  "short_name": "Katalog TMI",
+  "description": "Katalog tesis Teknik Manajemen Industri, dikelompokkan berdasarkan kelompok keilmuan.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#efe9db",
+  "theme_color": "#efe9db",
+  "lang": "id",
+  "icons": [
+    {
+      "src": "/pwa.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/pwa.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
