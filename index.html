@@ -10,14 +10,14 @@
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 
 <!-- PWA support -->
-<link rel="manifest" href="/manifest.json">
+<link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#efe9db" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#1c1a16" media="(prefers-color-scheme: dark)">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Katalog Tesis TMI">
-<link rel="apple-touch-icon" href="/pwa.png">
+<link rel="apple-touch-icon" href="pwa.png">
 <style>
   :root {
     box-sizing: border-box;
@@ -1458,7 +1458,7 @@ var TABS_GROUPS = GROUPS;
 <script>
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {
-      navigator.serviceWorker.register('/sw.js').catch(function (err) {
+      navigator.serviceWorker.register('sw.js').catch(function (err) {
         console.warn('SW registration failed:', err);
       });
     });

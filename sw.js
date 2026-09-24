@@ -1,10 +1,10 @@
 const CACHE_NAME = 'katalog-tmi-v1';
 const CORE_ASSETS = [
-  '/',
-  '/index.html',
-  '/manifest.json',
-  '/pwa.png',
-  '/catalog.png'
+  './',
+  'index.html',
+  'manifest.json',
+  'pwa.png',
+  'catalog.png'
 ];
 
 self.addEventListener('install', function (event) {
@@ -48,7 +48,7 @@ self.addEventListener('fetch', function (event) {
         }
         return response;
       }).catch(function () {
-        return cached || caches.match('/index.html');
+        return cached || caches.match('index.html');
       });
 
       return cached || networkFetch;
