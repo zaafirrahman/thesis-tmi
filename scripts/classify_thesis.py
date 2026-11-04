@@ -275,13 +275,13 @@ def format_kw_list(kws):
 # langsung kelihatan terbukti, termasuk kasus "beririsan" dari poster KKSIK
 # ---------------------------------------------------------------------------
 if __name__ == '__main__':
-    csv_path = 'list_judul_tesis_tmi_itb.csv'
+    csv_path = os.path.join('data', 'list_judul_tesis_tmi_itb.csv')
 
     if os.path.exists(csv_path):
         df = pd.read_csv(csv_path)
         title_col = 'Judul Tesis'
     else:
-        print("[Demo mode] File list_judul_tesis_tmi_itb.csv tidak ditemukan di folder ini.")
+        print("[Demo mode] File data/list_judul_tesis_tmi_itb.csv tidak ditemukan.")
         print("Menjalankan contoh judul untuk membuktikan hasil perbaikan.\n")
         demo_titles = [
             "PERAMALAN HARGA KARET (TSR20) MENGGUNAKAN LSTM DENGAN KOREKSI EROR SVR DAN OPTIMASI HYPERPARAMETER",
@@ -322,7 +322,7 @@ if __name__ == '__main__':
         print("4) Judul beban kerja fisik -> tetap solid ke Ergonomi (tidak berubah, karena keyword sudah spesifik dari awal).")
 
     else:
-        output_dir = 'tesis_by_specialization_v2'
+        output_dir = os.path.join('data', 'tesis_by_specialization_v2')
         os.makedirs(output_dir, exist_ok=True)
 
         total = len(out_df)

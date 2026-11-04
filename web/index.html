@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Katalog Tesis TMI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="icon" type="image" href="img/catalog.png">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<!-- PWA support -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#efe9db" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1c1a16" media="(prefers-color-scheme: dark)">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Katalog Tesis TMI">
+<link rel="apple-touch-icon" href="img/pwa.png">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="wrap">
+
+  <div class="navbar">
+    <img src="img/catalog.png" alt="Catalog" class="nav-logo">
+    <div class="nav-text">
+      <div>Program Studi Magister (S2)</div>
+      <div>Teknik dan Manajemen Industri</div>
+      <div>Institut Teknologi Bandung</div>
+    </div>
+  </div>
+
+  <header class="masthead">
+    <div>
+      <h1>Katalog Tesis TMI</h1>
+      <p class="dek">Kumpulan judul tesis, dipetakan otomatis ke kelompok keilmuan berdasarkan kedekatan kata kunci &mdash; <em>bukan</em> penilaian resmi dari tiap kelompok keahlian. Banyak judul melintasi lebih dari satu kelompok &mdash; dibuat untuk menelusuri kecenderungan topik sebelum menentukan preferensi penelitian.</p>
+    </div>
+    <div class="meta">
+      <strong id="totalCount">—</strong>
+      judul tesis · <span id="multiCount">—</span> beririsan
+    </div>
+  </header>
+
+  <div class="spectrum" id="spectrum"></div>
+  <div class="spectrum-caption" id="spectrumCaption"></div>
+
+  <div class="overlap-strip">
+    <div class="ov-head">
+      <h2>Kelompok yang paling sering beririsan</h2>
+      <span class="ov-sub">Klik pasangan untuk memfilter judul yang menyentuh keduanya</span>
+    </div>
+    <div class="pair-row" id="pairRow"></div>
+  </div>
+
+  <div class="controls">
+    <div class="search-box">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input id="searchInput" type="text" placeholder="Cari judul atau kata kunci…" autocomplete="off">
+    </div>
+    <select id="sortSelect">
+      <option value="no">Urut · nomor asli</option>
+      <option value="conf">Urut · skor utama tertinggi</option>
+      <option value="az">Urut · judul A–Z</option>
+    </select>
+    <label class="review-toggle">
+      <input type="checkbox" id="reviewToggle">
+      Perlu ditinjau ulang saja
+    </label>
+  </div>
+
+  <div class="tabs" id="tabs"></div>
+  <div class="tabs-note">Angka pada tiap tab menghitung judul yang menyentuh kelompok itu, baik sebagai kelompok utama maupun kelompok kedua &mdash; jadi satu judul bisa muncul di lebih dari satu tab.</div>
+
+  <div class="layout">
+    <aside class="panel">
+      <div class="panel-block" id="groupInfo"></div>
+      <div class="panel-block kw-list-wrap">
+        <h2>Kata kunci teratas</h2>
+        <div id="kwList"></div>
+      </div>
+    </aside>
+
+    <main>
+      <div class="list-head">
+        <div class="list-meta" id="listMeta"></div>
+        <div class="role-legend">
+          <span class="mpill role-utama">utama</span>
+          <span class="mpill role-sekunder">kedua</span>
+        </div>
+      </div>
+      <div id="cardList"></div>
+      <div id="emptyState" class="empty-state" style="display:none;">
+        <strong>Tidak ada judul yang cocok.</strong>
+        <p>Coba kata kunci lain, longgarkan filter kelompok, atau matikan filter tinjau ulang.</p>
+      </div>
+      <div id="loadMoreWrap" style="display:none;">
+        <button id="loadMoreBtn" type="button">Tampilkan 60 judul berikutnya</button>
+      </div>
+    </main>
+  </div>
+
+  <footer>
+    Setiap judul dapat memiliki kelompok utama dan kelompok kedua sekaligus &mdash; garis tepi kartu menunjukkan kedua warna itu ketika keduanya ada. Klasifikasi kelompok di halaman ini dihasilkan otomatis dari kedekatan kata kunci pada judul dengan daftar kata kunci tiap kelompok keilmuan, <strong>bukan</strong> penilaian resmi dari KK yang bersangkutan &mdash; klik sebuah kelompok lalu &ldquo;Lihat kata kunci pencocokan&rdquo; untuk lihat daftar lengkapnya. Skor menunjukkan jumlah penanda kata kunci yang cocok saat klasifikasi otomatis dijalankan, bukan penilaian kualitas atau kelayakan topik. Judul bertanda &ldquo;perlu ditinjau ulang&rdquo; adalah yang skor kelompok utama dan keduanya berdekatan, sehingga klasifikasinya belum tegas dan sebaiknya dicek manual. Klik judul untuk membuka halaman Digilib ITB &mdash; tautannya ditebak otomatis dari judul, jadi bisa 404 untuk sebagian judul terbaru yang URL aslinya menyertakan NIM penulis (kami tidak punya data NIM). Kalau itu terjadi, pakai ikon kaca pembesar di sebelah judul untuk mencari halaman aslinya lewat Google. Sumber: berkas CSV kelompok keilmuan yang diunggah.
+  </footer>
+
+</div>
+
+<script src="js/app.js"></script>
+<script src="js/register-sw.js"></script>
+</body>
+</html>

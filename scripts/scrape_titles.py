@@ -6,6 +6,11 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from webdriver_manager.chrome import ChromeDriverManager
 import time
+import os
+
+DATA_DIR = "data"
+os.makedirs(DATA_DIR, exist_ok=True)
+OUT_CSV = os.path.join(DATA_DIR, "list_judul_tesis_tmi_itb.csv")
 
 # Setup
 options = webdriver.ChromeOptions()
@@ -66,8 +71,8 @@ try:
     # Export ke CSV
     if all_data:
         df = pd.DataFrame(all_data)
-        df.to_csv("list_judul_tesis_tmi_itb.csv", index=False)
-        print(f"\nSelesai! Total {len(all_data)} judul tersimpan di 'semua_judul_tesis_tmi_itb.csv'")
+        df.to_csv(OUT_CSV, index=False)
+        print(f"\nSelesai! Total {len(all_data)} judul tersimpan di '{OUT_CSV}'")
     else:
         print("Yah, nggak ada data yang ke-grab.")
 

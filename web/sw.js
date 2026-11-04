@@ -1,10 +1,14 @@
-const CACHE_NAME = 'katalog-tmi-v1';
+const CACHE_NAME = 'katalog-tmi-v2';
 const CORE_ASSETS = [
   './',
   'index.html',
   'manifest.json',
-  'pwa.png',
-  'catalog.png'
+  'css/style.css',
+  'js/app.js',
+  'js/register-sw.js',
+  'data/thesis-data.json',
+  'img/pwa.png',
+  'img/catalog.png'
 ];
 
 self.addEventListener('install', function (event) {
