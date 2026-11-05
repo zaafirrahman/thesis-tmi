@@ -1,0 +1,6 @@
+# Variasi penulisan nama dosen di digilib -> nama kanonik (harus sama dengan
+# salah satu nama di config/kk.yaml). Dipakai bila pencocokan otomatis gagal.
+# Kunci & nilai boleh pakai gelar, dinormalisasi otomatis. Contoh:
+#
+# "Prof. Dr. Rajesri, S.T., M.T.": "Prof. Dr. Rajesri Govindaraju, S.T., M.T."
+{}

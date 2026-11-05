@@ -1,0 +1,322 @@
+import json
+import sys
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / 'scripts'))
+FIX = ROOT / 'tests' / 'fixtures'
+
+from classify_thesis import advisor_vector, run  # noqa: E402
+from common import canonical_url, file_stem, fix_href, safe_url  # noqa: E402
+from fetch_detail import candidates, fetch_one, slug_variants  # noqa: E402
+from crawl_list import assign_ids, parse_list_page  # noqa: E402
+from names import LecturerIndex, extract_advisor_names, load_kk, name_key  # noqa: E402
+from parse_detail import parse_detail, split_keywords  # noqa: E402
+
+
+class ListPage(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.items, cls.total = parse_list_page((FIX / 'list_page.html').read_text(encoding='utf-8'))
+
+    def test_counts(self):
+        self.assertEqual(self.total, 1132)
+        self.assertEqual(len(self.items), 20)
+        self.assertEqual(len({i['id'] for i in self.items}), 20)
+
+    def test_first_item_old_thesis_without_nim_in_url(self):
+        it = self.items[0]
+        self.assertTrue(it['title'].startswith('PENGEMBANGAN MODEL SISTEM DAUR ULANG SATU LANGKAH'))
+        self.assertNotIn('?', it['url'])
+        self.assertFalse(it['url'].endswith('/'))
+        self.assertEqual((it['author'], it['nim']), ('New Vita Mey Destty Marbun', '23410056'))
+        self.assertEqual(it['advisors'], ['Ir. Rachmawati Wangsaputra, M.T., Ph.D.'])
+        self.assertEqual(it['rank'], 1)
+
+    def test_multiple_advisors_split_on_semicolon(self):
+        it = [i for i in self.items if i['nim'] == '23424053'][0]
+        self.assertEqual(len(it['advisors']), 3)
+        self.assertIn('Titah Yudhistira, S.T., M.T., Ph.D.', it['advisors'])
+
+
+class OldRecords(unittest.TestCase):
+    def test_href_whitespace_removed(self):
+        h = 'https://x/gdl/view_data/abc-\n\tdef-\n/?rows=1&per_page=3'
+        self.assertEqual(fix_href(h).split('?')[0], 'https://x/gdl/view_data/abc-def-/')
+        self.assertEqual(canonical_url(h), 'https://x/gdl/view_data/abc-def-')
+
+    def test_file_stem_short_and_safe(self):
+        stem = file_stem('a' * 300 + '/weird id:*')
+        self.assertLess(len(stem), 100)
+        self.assertRegex(stem, r'^[A-Za-z0-9._~-]+$')
+
+    def test_duplicate_slugs_get_unique_ids_not_dropped(self):
+        mk = lambda t, a: {'id': 'same-slug', 'title': t, 'author': a, 'ambiguous_url': False}
+        items = assign_ids([mk('JUDUL A', 'Budi'), mk('Judul a', 'Sari'), {**mk('lain', 'x'), 'id': 'other'}])
+        self.assertEqual(len({i['id'] for i in items}), 3)
+        self.assertEqual([i['ambiguous_url'] for i in items], [True, True, False])
+        self.assertEqual(items[2]['id'], 'other')
+
+    def test_exact_duplicate_entries_kept_with_unique_ids(self):
+        mk = lambda: {'id': 'same-slug', 'title': 'JUDUL A', 'author': 'Budi', 'ambiguous_url': False}
+        a, b = assign_ids([mk(), mk()])
+        self.assertNotEqual(a['id'], b['id'])
+        self.assertIsNone(a['duplicate_of'])
+        self.assertEqual(b['duplicate_of'], a['id'])
+
+    def test_empty_nim_brackets(self):
+        html = ('<div class="col-lg-11"><a href="https://d/gdl/view_data/x/?rows=2&per_page=1">T</a>'
+                '<sup><i class="bi bi-person"></i> Shaaban Bakar Said[] <i class="bi bi-people"></i> P</sup></div>')
+        it = parse_list_page(html)[0][0]
+        self.assertEqual((it['author'], it['nim']), ('Shaaban Bakar Said', None))
+
+    def test_old_advisor_strings(self):
+        f = extract_advisor_names
+        self.assertEqual(f(['Pembimbing : 1.Matthias Aroef 2. Ubuh Buchara Didayat Scan: Mudjiono']),
+                         ['Matthias Aroef', 'Ubuh Buchara Didayat'])
+        self.assertEqual(f(['Muhamad Faisal ', 'Muhamad Sutarno Scanner : Kory']),
+                         ['Muhamad Faisal', 'Muhamad Sutarno'])
+        self.assertEqual(f(['Pembimbing : Prof.Dr.Mathias Aroef, MSIE. Scanner: Alice Diniarti', '2008-01-04.']),
+                         ['Prof.Dr.Mathias Aroef, MSIE'])
+        self.assertEqual(f(['P']), [])
+        self.assertEqual(f(['#CONTRIBUTOR#']), [])
+        self.assertEqual(f(['Dr. Ir. S.B. Hari Lubis']), ['Dr. Ir. S.B. Hari Lubis'])
+
+    def test_html_and_glued_advisor_strings(self):
+        f = extract_advisor_names
+        self.assertEqual(f(['<br /> <br /> Prof. Dr. Ir. Senator Nur Bahagia <br /> <br /> Dr. Titah Yudhistira, S.T., M.T']),
+                         ['Prof. Dr. Ir. Senator Nur Bahagia', 'Dr. Titah Yudhistira, S.T., M.T'])
+        self.assertEqual(f(['Prof.Dr.Ir. Abdul Hakim Halim, MSc. Dr. Wisnu Aribowo, ST., MT']),
+                         ['Prof.Dr.Ir. Abdul Hakim Halim, MSc', 'Dr. Wisnu Aribowo, ST., MT'])
+        self.assertEqual(f(['Harsono Taroepratjeka, Prof., Dr., Ir., dan Dradjad Irianto, Prof. Dr. Ir. M.Eng']),
+                         ['Harsono Taroepratjeka, Prof., Dr., Ir', 'Dradjad Irianto, Prof. Dr. Ir. M.Eng'])
+        self.assertEqual(f(['Pembimbing Dr. TMA. Ari Samadhi']), ['Dr. TMA. Ari Samadhi'])
+        self.assertEqual(f(['(Suprayogi Ph.D.)']), ['Suprayogi Ph.D'])
+        self.assertEqual(f(['(1) Dr. Sukoyo (ITB)']), ['Dr. Sukoyo'])
+        self.assertEqual(f(['Supervisors : <br /> <br />']), [])
+        self.assertEqual(f(['<br /> <br />']), [])
+        self.assertEqual(f(['<br /> <br /> Pembimbing 2 : Dradjad Irianto,Ir., M.Eng,. <br />']),
+                         ['Dradjad Irianto,Ir., M.Eng'])
+        idx = LecturerIndex(load_kk())
+        self.assertEqual(idx.match("Dr.Ir. Anas Ma\\'ruf")[1], ['sistem_manufaktur'])
+
+    def test_junk_and_scanner_names_dropped(self):
+        f = extract_advisor_names
+        for junk in ['Neneng', 'Mudjiono', 'Yati Rohmah', 'Editor:', 'Catalogue Link:', 'ena506@yahoo.co.id',
+                     'http://webpac.lib.itb.ac.id/index.php?menu=library_detail&ID=55525', '05 Februari 2008',
+                     'penulis : ADE GEOVANIA A', 'Pembingbing :', 'Pmbimbing :', 'Theses - Industrial Engineering',
+                     'Pedoman Penggunaan Tesis:', 'Scan dewi', 'Neneng@unix.lib.itb.ac.id>']:
+            self.assertEqual(f([junk]), [], junk)
+
+    def test_role_prefixes_with_colon(self):
+        f = extract_advisor_names
+        self.assertEqual(f(['Komisi Pembimbing: Iman Sudirman, Dr., Ir']), ['Iman Sudirman, Dr., Ir'])
+        self.assertEqual(f(['Utama: Ida I Dewa Gde Raka, Dr., Ir., MEIE']), ['Ida I Dewa Gde Raka, Dr., Ir., MEIE'])
+        self.assertEqual(f(['Ko-Pembimbing: M. Tasrif Arif, Ir., M.Eng']), ['M. Tasrif Arif, Ir., M.Eng'])
+        self.assertEqual(f(['Alm. Dr. Ir. TMA. Ari Samadhi (Anggota']), ['Dr. Ir. TMA. Ari Samadhi'])
+        self.assertEqual(f(['Ketua Program : Ali Basyah Siregar, Dr. Ir']), ['Ali Basyah Siregar, Dr. Ir'])
+
+    def test_single_surname_must_not_match(self):
+        idx = LecturerIndex(load_kk())
+        self.assertEqual(idx.match('Hidayat')[2], 'unmapped')          # bukan Yosi Agustina Hidayat
+        self.assertEqual(idx.match('Dr.Ir. Ubuh Buchara Hidayat')[2], 'unmapped')
+        self.assertEqual(idx.match('Prof. Dr. Rajesri, S.T., M.T')[1], ['sistem_informasi_keputusan'])  # nama depan OK
+        self.assertEqual(idx.match('Kadarsah,Dr.Ir')[1], ['sistem_informasi_keputusan'])
+
+    def test_middle_initial(self):
+        idx = LecturerIndex(load_kk())
+        self.assertEqual(idx.match('Dr. Ir. Herman R. Soetisna, DEA')[1], ['ergonomi_rekayasa_kerja'])
+        self.assertEqual(idx.match('Dr.Ir. Herman R Soetisna, DEA')[1], ['ergonomi_rekayasa_kerja'])
+
+    def test_abbreviated_first_name(self):
+        idx = LecturerIndex(load_kk())
+        k, slugs, m = idx.match('Dr.Moh. MiÃ‚Â’radj Isnaini, ST., MT')
+        self.assertEqual((slugs, m), (['sistem_manufaktur'], 'abbrev'))
+
+    def test_mojibake_name(self):
+        self.assertEqual(name_key('Dr. Ir. Anas MaÃ‚Â’ruf'), 'anas maruf')
+        idx = LecturerIndex(load_kk())
+        self.assertEqual(idx.match('Prof. Dr. Ir. Anas MaÃ‚Â’ruf')[1], ['sistem_manufaktur'])
+        self.assertEqual(idx.match('Dr. Ir. Drajad Irianto, M. Eng')[1], ['sistem_manufaktur'])
+
+
+class DetailPage(unittest.TestCase):
+    def test_fields(self):
+        d = parse_detail((FIX / 'detail_sample.html').read_text(encoding='utf-8'))
+        self.assertTrue(d['title'].startswith('EKSPLORASI STRUKTUR FAKTOR NILAI'))
+        self.assertNotIn('  ', d['title'])
+        self.assertEqual((d['author'], d['nim']), ('G P Chandra Adidharma Yasa', '23424011'))
+        self.assertEqual(d['advisors'], ['Prof. Dr. Ir. Joko Siswanto, M.PA.'])
+        self.assertIsInstance(d['year'], int)
+        self.assertTrue(d['subject'])
+        self.assertGreaterEqual(len(d['keywords']), 3)
+        self.assertTrue(all(k == k.strip() and k for k in d['keywords']))
+        self.assertTrue(d['url'].startswith('https://digilib.itb.ac.id/gdl/view_data/'))
+        self.assertTrue(d['abstract'])
+
+
+class FakeResp:
+    def __init__(self, code, text=''):
+        self.status_code, self.text = code, text
+
+
+class FakeSession:
+    """rules: fungsi url -> (kode, teks). Mencatat url yang dicoba."""
+    def __init__(self, rule):
+        self.rule, self.tried = rule, []
+
+    def get(self, url, timeout=0):
+        self.tried.append(url)
+        return FakeResp(*self.rule(url))
+
+
+class FetchFallback(unittest.TestCase):
+    OK = '<meta property="og:title" content="x">'
+    IT = {'url': "https://d/gdl/view_data/a-homel's-model", 'href': "https://d/gdl/view_data/a-homel's-model/?rows=9&per_page=3",
+          'ambiguous_url': False}
+
+    def test_safe_url_encodes_apostrophe_and_brackets(self):
+        self.assertEqual(safe_url("https://d/gdl/view_data/a-b's-[c]/?rows=1"),
+                         'https://d/gdl/view_data/a-b%27s-%5Bc%5D/?rows=1')
+        self.assertEqual(safe_url('https://d/x/a%20b'), 'https://d/x/a%20b')  # tidak double-encode
+
+    def test_safe_url_keeps_newline_as_percent_0a(self):
+        self.assertEqual(safe_url('https://d/x/a-\nb\tc/?r=1'), 'https://d/x/a-%0Ab%09c/?r=1')
+
+    def test_candidates_order_and_unique(self):
+        c = candidates(self.IT)
+        self.assertEqual(c[0], self.IT['url'])
+        self.assertEqual(c[1], self.IT['href'])
+        self.assertEqual(len(c), len(set(c)))
+        amb = candidates({**self.IT, 'ambiguous_url': True})
+        self.assertEqual(amb[0], self.IT['href'])
+
+    def test_newline_in_raw_href_gets_percent_0a_variant(self):
+        it = {'url': 'https://d/gdl/view_data/ab-cd', 'href': 'https://d/gdl/view_data/ab-cd/?rows=9&per_page=3',
+              'href_raw': 'https://d/gdl/view_data/ab-\ncd/?rows=9&per_page=3', 'ambiguous_url': False}
+        c = candidates(it)
+        self.assertIn('https://d/gdl/view_data/ab-%0Acd/?rows=9&per_page=3', c)
+        s = FakeSession(lambda u: (200, self.OK) if '%0A' in u else (500, ''))
+        html, log = fetch_one(s, it, delay=0)
+        self.assertIsNotNone(html)
+
+    def test_slug_variants_drop_special_chars(self):
+        v = slug_variants("https://d/gdl/view_data/a-b's-[c]-d")
+        self.assertIn('https://d/gdl/view_data/a-bs-c-d', v)
+        self.assertIn('https://d/gdl/view_data/a-b-s-c-d', v)
+        self.assertEqual(slug_variants('https://d/gdl/view_data/polos-saja'), [])
+
+    def test_400_on_raw_apostrophe_recovers_with_encoded(self):
+        s = FakeSession(lambda u: (200, self.OK) if '%27' in u else (400, ''))
+        html, log = fetch_one(s, self.IT, delay=0)
+        self.assertEqual(html, self.OK)
+        self.assertEqual(log[-1], '200')
+        self.assertTrue(set(log[:-1]) == {'400'})
+
+    def test_500_on_canonical_falls_back_to_original_href(self):
+        it = {'url': 'https://d/gdl/view_data/abc', 'href': 'https://d/gdl/view_data/abc/?rows=9&per_page=3',
+              'ambiguous_url': False}
+        s = FakeSession(lambda u: (200, self.OK) if 'per_page' in u else (500, ''))
+        html, log = fetch_one(s, it, delay=0)
+        self.assertIsNotNone(html)
+        self.assertEqual(log, ['500', '200'])
+
+    def test_all_variants_fail_reports_statuses(self):
+        s = FakeSession(lambda u: (500, ''))
+        html, log = fetch_one(s, self.IT, delay=0)
+        self.assertIsNone(html)
+        self.assertGreaterEqual(len(log), 3)
+        self.assertEqual(set(log), {'500'})
+
+    def test_200_error_page_is_not_accepted(self):
+        s = FakeSession(lambda u: (200, '<html>Terjadi kesalahan</html>'))
+        html, log = fetch_one(s, self.IT, delay=0)
+        self.assertIsNone(html)
+        self.assertIn('200-bukan-detail', log)
+
+
+class Keywords(unittest.TestCase):
+    def test_trailing_period_and_blanks(self):
+        self.assertEqual(split_keywords('Pembelajaran, UMKM Fesyen,  Learning Management System. ,'),
+                         ['Pembelajaran', 'UMKM Fesyen', 'Learning Management System'])
+
+
+class Names(unittest.TestCase):
+    def test_name_key(self):
+        self.assertEqual(name_key('Dr.Eng. Yosi Agustina Hidayat, S.T., M.T.'), 'yosi agustina hidayat')
+        self.assertEqual(name_key('Prof. Dr. Ir. Anas Ma’ruf, M.T., IPM.'), 'anas maruf')
+        self.assertEqual(name_key("Prof. Dr. Ir. Anas Ma'ruf"), 'anas maruf')
+        self.assertEqual(name_key('Dr. Ir. Herman Rahadian Soetisna, DEA'), 'herman rahadian soetisna')
+        self.assertEqual(name_key('Prof. Dr. Ir. Kadarsah Suryadi DEA'), 'kadarsah suryadi')
+        self.assertEqual(name_key('Taufiqurrahman S.T., M.S.E'), 'taufiqurrahman')
+        self.assertEqual(name_key('G P Chandra Adidharma Yasa'), 'g p chandra adidharma yasa')
+
+    def test_matching(self):
+        idx = LecturerIndex(load_kk())
+        k, slugs, m = idx.match('Prof. Dr. Ir. Joko Siswanto, M.PA.')
+        self.assertEqual((slugs, m), (['manajemen_industri'], 'exact'))
+        # typo digilib: tanpa nama belakang
+        k, slugs, m = idx.match('Prof. Dr. Rajesri, S.T., M.T.')
+        self.assertEqual((slugs, m), (['sistem_informasi_keputusan'], 'subset'))
+        self.assertEqual(idx.match('Dosen Luar Negeri, Ph.D.')[2], 'unmapped')
+
+    def test_all_kk_members_unique_and_mapped(self):
+        kk = load_kk()
+        idx = LecturerIndex(kk)
+        for spec in kk.values():
+            for nm in [spec['ketua']] + spec['anggota']:
+                self.assertEqual(idx.match(nm)[2], 'exact', nm)
+
+
+def rec(i, title, advisors, keywords):
+    return {'id': str(i), 'no': i, 'url': f'u{i}', 'title': title, 'author': 'x', 'nim': None,
+            'advisors': advisors, 'year': 2024, 'subject': None, 'keywords': keywords}
+
+
+class Classify(unittest.TestCase):
+    JS = 'Prof. Dr. Ir. Joko Siswanto, M.PA.'      # manajemen_industri
+    HI = 'Prof. Ir. Hardianto Iridiastadi, MSIE., Ph.D.'  # ergonomi
+
+    def test_advisor_vector(self):
+        v = advisor_vector([('a', 'a', ['x', 'y'], 'exact'), ('b', 'b', ['x'], 'exact'),
+                            ('c', None, [], 'unmapped')])
+        self.assertAlmostEqual(v['x'], 0.75)
+        self.assertAlmostEqual(v['y'], 0.25)
+        self.assertIsNone(advisor_vector([('c', None, [], 'unmapped')]))
+
+    def test_single_advisor_wins_and_keywords_learned(self):
+        recs = [rec(i, f'Judul netral {i}', [self.HI], ['postur kerja', 'ergonomi']) for i in range(6)]
+        recs += [rec(10 + i, f'Judul lain {i}', [self.JS], ['strategi bisnis', 'kepemimpinan']) for i in range(6)]
+        # tesis tanpa dospem ter-map: harus ditentukan keyword
+        recs.append(rec(99, 'Tanpa dospem', ['Dosen Tak Dikenal'], ['postur kerja']))
+        out, _, _ = run(recs, load_kk())
+        by = {o['id']: o for o in out}
+        self.assertEqual(by['0']['memberships'][0]['slug'], 'ergonomi_rekayasa_kerja')
+        self.assertEqual(by['10']['memberships'][0]['slug'], 'manajemen_industri')
+        self.assertEqual(by['99']['memberships'][0]['slug'], 'ergonomi_rekayasa_kerja')
+        self.assertTrue(by['99']['perlu_review'])
+        self.assertIn('dospem belum ter-map ke KK', by['99']['review_reasons'])
+
+    def test_two_advisors_two_kk_gives_secondary(self):
+        recs = [rec(0, 'X', [self.JS, self.HI], [])]
+        out, _, _ = run(recs, load_kk())
+        roles = [m['role'] for m in out[0]['memberships']]
+        self.assertEqual(roles, ['utama', 'sekunder'])
+
+    def test_no_signal_is_unclassified(self):
+        out, _, _ = run([rec(0, 'zzz qqq', [], [])], load_kk())
+        self.assertEqual(out[0]['memberships'], [])
+        self.assertTrue(out[0]['perlu_review'])
+
+    def test_scores_are_ints_and_leave_one_out(self):
+        # keyword unik milik satu tesis tidak boleh mengangkat tesis itu sendiri
+        recs = [rec(0, 'X', [self.JS], ['kata sangat unik'])]
+        out, _, _ = run(recs, load_kk())
+        sig = out[0]['memberships'][0]['signals']
+        self.assertNotIn('keyword', sig)
+        self.assertIsInstance(out[0]['memberships'][0]['score'], int)
+
+
+if __name__ == '__main__':
+    unittest.main()

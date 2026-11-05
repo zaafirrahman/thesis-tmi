@@ -1,352 +1,324 @@
-"""
-Klasifikasi judul tesis TMI ITB ke 5 peminatan/KK.
+"""Klasifikasi tesis ke Kelompok Keahlian (KK) dari tiga sinyal:
 
-Perbaikan dari versi sebelumnya:
-1. Matching pakai regex word-boundary (\\b), bukan substring `in` biasa.
-   -> Contoh bug lama: keyword 'ERP' ketangkep di tengah kata "hyp-ERP-arameter".
-2. Setiap keyword punya bobot: STRONG (2) = penanda kuat & spesifik ke satu
-   peminatan, WEAK (1) = kata umum yang muncul lintas bidang (mis. 'industri',
-   'strategi', 'manajemen', 'digital', 'LSTM', 'AI'). Klasifikasi = skor
-   tertinggi (jumlah bobot), bukan sekadar jumlah keyword yang match.
-   -> Ini mencegah kata generik menang sendirian cuma karena kebetulan match.
-3. 'pengembangan' & 'penelitian' DIHAPUS dari keyword Manajemen Industri.
-   Dua kata ini adalah kata baku akademik Indonesia utk "developing a
-   model/system/app/..." dan muncul di HAMPIR SEMUA judul riset apapun
-   topiknya -> menyebabkan Manajemen Industri selalu jadi kategori terbesar
-   padahal isinya belum tentu manajemen industri sama sekali.
-4. Setiap judul sekarang dapat skor untuk SEMUA kategori (bukan cuma juara 1).
-   Kolom 'Klasifikasi_2' (runner-up) dan 'Perlu_Review' membantu menunjukkan
-   judul yang ambigu / beririsan antar-KK, supaya bisa direview manual
-   alih-alih dipaksa 1 label yang belum tentu tepat.
-"""
+  1. dosen   : KK dosen pembimbing (config/kk.yaml)             -> bobot 0.50
+  2. keyword : kata kunci resmi digilib; tiap kata kunci dipetakan ke KK dari
+               tesis LAIN (leave-one-out) yang dibimbing dosen ber-KK   -> 0.35
+  3. judul   : kecocokan kata kunci pada judul (aturan v2 lama)   -> 0.15
 
-import pandas as pd
+Sinyal yang tidak tersedia dibuang & bobot sisanya dinormalisasi ulang. Hasil
+akhir berupa skor per KK (jumlah 1). KK utama = skor tertinggi; KK kedua muncul
+bila skornya >= SECOND_MIN, walau berbeda dari KK dosen.
+
+Pakai:  python scripts/classify_thesis.py [--explain KATA_DI_JUDUL]
+Output: data/classified.jsonl, data/unmapped_advisors.txt
+"""
+import argparse
+import json
+import math
 import re
-import os
-from collections import defaultdict
+import sys
+from collections import Counter, defaultdict
 
-# ---------------------------------------------------------------------------
-# Definisi kata kunci per peminatan.
-# 'strong' = penanda kuat/spesifik (bobot 2), 'weak' = kata umum lintas bidang
-# yang tetap relevan tapi tidak boleh menang sendirian (bobot 1).
-# ---------------------------------------------------------------------------
+from common import DATA
+from names import LecturerIndex, extract_advisor_names, load_aliases, load_kk, name_key
+from title_keywords import score_title
 
-SPECIALIZATIONS = {
-    'sistem_manufaktur': {
-        'label': 'Sistem Manufaktur',
-        'strong': [
-            'manufaktur', 'manufacturing', 'assembly', 'perakitan', 'CNC',
-            'machining', 'casting', 'foaming', 'injection molding', 'extruder',
-            'tooling', 'fixture', 'jig', 'layout pabrik', 'automasi', 'otomasi',
-            'robot', 'robotika', 'AGV', 'conveyor', 'quality control',
-            'pengendalian kualitas', 'SPC', 'six sigma', 'lean manufacturing',
-            'TPM', 'perawatan mesin', 'OEE', 'process improvement',
-            'optimasi proses', 'discrete event', 'product design', 'prototype',
-            '3D printing', 'additive manufacturing', 'supply chain',
-            'rantai pasok', 'logistik', 'distribusi', 'inventory',
-            'persediaan', 'warehouse', 'gudang', 'material handling',
-            'forklift', 'nesting', 'cutting', 'scheduling', 'penjadwalan',
-            'sequencing', 'fleet management', 'transportation',
-            'peta kendali', 'control chart', 'sampling plan',
-            'rencana sampling', 'chemical milling', 'sheet metal forming',
-        ],
-        'weak': [
-            'produksi', 'pabrik', 'industri', 'produk', 'mesin',
-            'maintenance', 'reliability', 'simulasi', 'lean',
-        ],
-    },
-    'sistem_industri_rantai_nilai': {
-        'label': 'Sistem Industri dan Rantai Nilai',
-        'strong': [
-            'rantai nilai', 'value chain', 'nilai tambah', 'value stream',
-            'kompetitif', 'competitive', 'keunggulan bersaing', 'daya saing',
-            'business model', 'model bisnis', 'canvas', 'BMC', 'merger',
-            'akuisisi', 'divestasi', 'restrukturisasi', 'ESG', 'carbon',
-            'emisi', 'energi terbarukan', 'EBT', 'renewable',
-            'life cycle assessment', 'LCA', 'daur ulang', 'recycling',
-            'circular economy', 'ekonomi sirkular', 'risk management',
-            'manajemen risiko', 'mitigasi risiko', 'resilience',
-            'resiliensi', 'ketahanan', 'tangguh', 'stakeholder',
-            'pemangku kepentingan', 'CSR', 'corporate social', 'SNI',
-            'sertifikasi', 'akreditasi', 'sustainability', 'berkelanjutan',
-            'lingkungan', 'environmental',
-            # --- tambahan: domain komoditas & perdagangan (bukti nyata
-            # kosong sebelumnya, ini akar bug kasus "harga karet") ---
-            'komoditas', 'komoditi', 'harga komoditas', 'fluktuasi harga',
-            'karet', 'getah karet', 'kelapa sawit', 'sawit',
-            'crude palm oil', 'CPO', 'kopi', 'kakao', 'batubara', 'nikel',
-            'timah', 'ekspor', 'impor', 'perdagangan internasional',
-            'neraca perdagangan', 'harga pasar', 'harga global',
-            'agroindustri', 'komoditas pertanian',
-            # --- tambahan: transportasi, logistik jaringan & lokasi
-            # fasilitas -- ini justru topik UTAMA publikasi KK-SITE
-            # (vehicle routing, berth/quay allocation, dsb di poster) ---
-            'rute kendaraan', 'vehicle routing', 'lokasi fasilitas',
-            'facility location', 'lokasi-alokasi fasilitas',
-            'jaringan distribusi', 'distribution network', 'rute kapal',
-            'penentuan rute', 'moda transportasi', 'transportasi umum',
-            'angkutan umum', 'angkutan', 'pelabuhan', 'terminal',
-            'bandara', 'penerbangan', 'stasiun pengisian',
-            'kendaraan listrik', 'electric vehicle', 'depot', 'jaringan hub',
-            'kapal', 'pelayaran', 'petikemas', 'kontainer', 'transshipment',
-            'wisatawan', 'pariwisata', 'wisata',
-            # --- tambahan: kebijakan & ekonomi sektoral/wilayah, sesuai
-            # poster KK-SITE ("Sosio-techno-economic Systems": planning &
-            # evaluation of public service system) ---
-            'sektor ekonomi', 'perekonomian', 'sektor pertanian',
-            'agribisnis', 'perkebunan', 'koperasi', 'tarif',
-            'willingness to pay', 'subsidi', 'pembangunan sektor',
-            'kebijaksanaan pembangunan', 'harga air', 'jasa telekomunikasi',
-            # --- putaran 2: varian ejaan & istilah yg masih kelewat ---
-            'depo', 'vehicle flow', 'fleet vehicle', 'pickup and delivery',
-            'cross-docking', 'fourth party logistic', 'sampah', 'limbah',
-            'persampahan', 'insinerator', 'dirgantara',
-        ],
-        'weak': [
-            'strategi', 'strategic', 'pertumbuhan', 'growth', 'scaling',
-            'ekspansi', 'kebijakan', 'policy', 'regulasi', 'regulation',
-            'pemerintah', 'ekonomi', 'economic', 'GDP', 'makroekonomi',
-            'industri 4.0', 'transformasi digital', 'digitalisasi',
-            'green', 'standar', 'standard', 'ISO', 'kendaraan', 'jaringan',
-        ],
-    },
-    'ergonomi_dan_rekayasa_kerja': {
-        'label': 'Ergonomi dan Rekayasa Kerja',
-        'strong': [
-            'ergonomi', 'ergonomic', 'human factors', 'faktor manusia',
-            'antropometri', 'anthropometry', 'postur', 'posture',
-            'beban kerja', 'workload', 'beban fisik', 'physical load',
-            'kelelahan', 'fatigue', 'nyeri', 'pain', 'MSDs',
-            'musculoskeletal', 'kerja fisik', 'physical work',
-            'aktivitas otot', 'EMG', 'thermal', 'kebisingan', 'noise',
-            'getaran', 'vibration', 'pencahayaan', 'lighting',
-            'illumination', 'K3', 'kecelakaan', 'accident', 'hazard',
-            'APD', 'PPE', 'helm', 'masker', 'pelindung',
-            'cognitive load', 'beban kognitif', 'mental workload',
-            'atensi', 'persepsi', 'perception', 'biomekanika',
-            'biomechanics', 'kinerja manusia', 'human performance',
-            'shift work', 'kerja shift', 'jam kerja', 'work schedule',
-            'prosthesis', 'prostetik', 'kaki palsu', 'tangan palsu',
-            'workplace design', 'desain tempat kerja', 'workstation',
-            # --- tambahan: perilaku berkendara & transportation
-            # ergonomics, sesuai "Transportation Ergonomics" di poster
-            # ERK3 (dan contoh publikasi soal driver alertness) ---
-            'perilaku berkendara', 'perilaku berisiko', 'berkendara',
-            'mengemudi', 'pengemudi', 'pengendara', 'naturalistic riding',
-            'naturalistic driving', 'driving behavior', 'riding behavior',
-            'kewaspadaan', 'kantuk', 'sleepiness', 'alertness',
-            'situation awareness', 'performansi mengemudi', 'masinis',
-            'waktu reaksi', 'reaction time',
-        ],
-        'weak': [
-            'kenyamanan', 'comfort', 'keselamatan', 'safety', 'usability',
-            'user experience', 'UX', 'interface', 'antarmuka', 'attention',
-            'pilot', 'simulator',
-        ],
-    },
-    'manajemen_industri': {
-        'label': 'Manajemen Industri',
-        'strong': [
-            'kepemimpinan', 'leadership', 'motivasi', 'motivation', 'SDM',
-            'human resource', 'talenta', 'talent', 'karyawan', 'pegawai',
-            'KPI', 'produktivitas', 'productivity', 'inovasi', 'innovation',
-            'ambidexterity', 'exploration', 'exploitation',
-            'learning organization', 'organisasi pembelajar',
-            'knowledge management', 'change management', 'budaya organisasi',
-            'decision making', 'pengambilan keputusan', 'multi-criteria',
-            'AHP', 'TOPSIS', 'project management', 'manajemen proyek',
-            'portofolio', 'quality management', 'TQM', 'ISO 9001', 'mutu',
-            'supply chain management', 'vendor', 'supplier', 'pemasok',
-            'pembelian', 'procurement', 'pengadaan', 'kontrak', 'UMKM',
-            'UKM', 'usaha kecil', 'startup', 'wirausaha', 'business process',
-            'BPM', 'proses bisnis', 'workflow', 'agile', 'scrum', 'kanban',
-            'continuous improvement', 'marketing', 'pemasaran', 'brand',
-            'merek', 'promosi', 'ROI', 'investasi',
-        ],
-        'weak': [
-            'manajemen', 'management', 'organisasi', 'organization',
-            'kinerja', 'performance', 'nilai', 'values', 'adopsi',
-            'adoption', 'perubahan', 'transformasi', 'strategi', 'strategy',
-            'competitive', 'persaingan', 'digital transformation',
-            'transformasi digital', 'digitalisasi', 'customer', 'pelanggan',
-            'konsumen', 'consumer', 'client', 'service', 'layanan',
-            'pelayanan', 'hospitality', 'financial', 'keuangan', 'biaya',
-            'cost', 'MSE', 'mean squared error', 'forecasting', 'peramalan',
-            'prediksi',
-        ],
-    },
-    'sistem_informasi_enterprise': {
-        'label': 'Sistem Informasi dan Keputusan',
-        'strong': [
-            'sistem informasi', 'information system', 'teknologi informasi',
-            'ERP', 'enterprise resource planning', 'SAP', 'Oracle', 'CRM',
-            'customer relationship management', 'supply chain management system',
-            'database', 'basis data', 'data warehouse', 'data mining',
-            'big data', 'business intelligence',
-            'kecerdasan buatan', 'artificial intelligence', 'deep learning',
-            'neural network', 'CNN', 'transformer', 'chatbot',
-            'virtual assistant', 'NLP', 'natural language', 'blockchain',
-            'smart contract', 'crypto', 'e-commerce', 'marketplace',
-            'komputasi awan', 'IoT', 'internet of things', 'cybersecurity',
-            'keamanan', 'encryption', 'authentication', 'TAM', 'UTAUT',
-            'technology adoption', 'acceptance', 'penerimaan',
-            'e-government', 'telemedicine', 'e-health', 'health informatics',
-            'fintech', 'e-wallet', 'pembayaran digital', 'ONNX',
-            'model deployment', 'decision support', 'dss',
-            'sistem pendukung keputusan', 'multi-agent', 'intelligent agent',
-        ],
-        'weak': [
-            'IT', 'software', 'aplikasi', 'platform', 'digital', 'komputer',
-            'analytics', 'analitik', 'AI', 'machine learning', 'LSTM',
-            'mobile', 'smartphone', 'android', 'iOS', 'app', 'web',
-            'website', 'portal', 'cloud', 'SaaS', 'PaaS', 'IaaS', 'sensor',
-            'embedded', 'UX', 'UI', 'user interface', 'usability',
-            'user experience', 'digital transformation', 'transformasi digital',
-            'social media', 'media sosial', 'payment', 'inference',
-            'deployment',
-        ],
-    },
+# ---- konfigurasi (silakan di-tuning) --------------------------------------
+WEIGHTS = {'dosen': 0.50, 'keyword': 0.35, 'title': 0.15}
+SECOND_MIN = 0.25        # skor minimum KK kedua
+REVIEW_MARGIN = 0.15     # selisih skor 1-2 di bawah ini -> perlu_review
+KW_MIN_SUPPORT = 1.0     # minimal "dukungan" dari tesis lain agar keyword dipakai
+KW_PRIOR = 2.0           # kekuatan prior (distribusi KK global) pada estimasi keyword
+PHRASE_W, TOKEN_W = 1.0, 0.6
+STOPWORDS = {
+    'dan', 'yang', 'di', 'dengan', 'untuk', 'pada', 'dalam', 'studi', 'kasus',
+    'model', 'sistem', 'analisis', 'penelitian', 'pengembangan', 'metode',
+    'the', 'of', 'and', 'for', 'in', 'based', 'using', 'analysis', 'system',
+    'systems', 'case', 'study', 'design', 'approach', 'pt',
 }
-
-WORD_RE_CACHE = {}
-
-
-def _pattern(keyword):
-    if keyword not in WORD_RE_CACHE:
-        WORD_RE_CACHE[keyword] = re.compile(r'\b' + re.escape(keyword.lower()) + r'\b')
-    return WORD_RE_CACHE[keyword]
-
-
-def score_title(title):
-    """Hitung skor tiap peminatan untuk satu judul.
-    Return dict: spec_id -> {'score': int, 'matched': [(keyword, weight), ...]}
-    """
-    if pd.isna(title):
-        return {}
-    title_lower = str(title).lower()
-    results = {}
-    for spec_id, spec in SPECIALIZATIONS.items():
-        matched = []
-        score = 0
-        for kw in spec['strong']:
-            if _pattern(kw).search(title_lower):
-                matched.append((kw, 2))
-                score += 2
-        for kw in spec['weak']:
-            if _pattern(kw).search(title_lower):
-                matched.append((kw, 1))
-                score += 1
-        if score > 0:
-            results[spec_id] = {'score': score, 'matched': matched}
-    return results
-
-
-def classify_title_full(title):
-    """Return (label1, score1, matched1, label2, score2, matched2, ambiguous)."""
-    results = score_title(title)
-    if not results:
-        return None, 0, [], None, 0, [], False
-
-    ranked = sorted(results.items(), key=lambda x: x[1]['score'], reverse=True)
-    top_id, top = ranked[0]
-    label1 = SPECIALIZATIONS[top_id]['label']
-    score1 = top['score']
-    matched1 = [k for k, w in top['matched']]
-
-    label2, score2, matched2 = None, 0, []
-    if len(ranked) > 1:
-        second_id, second = ranked[1]
-        label2 = SPECIALIZATIONS[second_id]['label']
-        score2 = second['score']
-        matched2 = [k for k, w in second['matched']]
-
-    # Ambigu kalau skor runner-up cukup dekat dengan juara 1 (selisih <=1 poin)
-    ambiguous = (score2 > 0) and (score1 - score2 <= 1)
-
-    return label1, score1, matched1, label2, score2, matched2, ambiguous
-
-
-def format_kw_list(kws):
-    return ';'.join(kws) if kws else ''
-
-
 # ---------------------------------------------------------------------------
-# Demo cepat (kalau file CSV asli belum ada di sini) supaya perbaikannya
-# langsung kelihatan terbukti, termasuk kasus "beririsan" dari poster KKSIK
-# ---------------------------------------------------------------------------
-if __name__ == '__main__':
-    csv_path = os.path.join('data', 'list_judul_tesis_tmi_itb.csv')
 
-    if os.path.exists(csv_path):
-        df = pd.read_csv(csv_path)
-        title_col = 'Judul Tesis'
-    else:
-        print("[Demo mode] File data/list_judul_tesis_tmi_itb.csv tidak ditemukan.")
-        print("Menjalankan contoh judul untuk membuktikan hasil perbaikan.\n")
-        demo_titles = [
-            "PERAMALAN HARGA KARET (TSR20) MENGGUNAKAN LSTM DENGAN KOREKSI EROR SVR DAN OPTIMASI HYPERPARAMETER",
-            "PENGEMBANGAN MODEL PERAWATAN PREDIKTIF UNTUK SISTEM PRODUKSI DENGAN PENDEKATAN ANALISA BIG DATA DAN KECERDASAN BUATAN MENGGUNAKAN DATA KONDISI MESIN DAN INFORMASI KUALITAS SECARA REAL TIME",
-            "PENGEMBANGAN STRATEGI PEMASARAN DIGITAL UNTUK MENINGKATKAN LOYALITAS PELANGGAN PADA UMKM",
-            "ANALISIS BEBAN KERJA FISIK OPERATOR PRODUKSI MENGGUNAKAN METODE NASA-TLX",
-        ]
-        df = pd.DataFrame({'No': range(1, len(demo_titles) + 1), 'Judul Tesis': demo_titles})
-        title_col = 'Judul Tesis'
 
-    rows = []
-    for _, row in df.iterrows():
-        title = row[title_col]
-        label1, score1, matched1, label2, score2, matched2, ambiguous = classify_title_full(title)
-        rows.append({
-            'No': row.get('No', ''),
-            'Judul Tesis': title,
-            'Klasifikasi': label1,
-            'Skor': score1,
-            'Keywords': format_kw_list(matched1),
-            'Klasifikasi_2': label2,
-            'Skor_2': score2,
-            'Keywords_2': format_kw_list(matched2),
-            'Perlu_Review': ambiguous,
+def norm_kw(k):
+    return ' '.join(k.lower().split()).rstrip('. ;')
+
+
+def units_of(keyword):
+    """Satu kata kunci -> [(unit, bobot)]: frasa utuh + kata penyusunnya."""
+    phrase = norm_kw(keyword)
+    out = [('p:' + phrase, PHRASE_W)]
+    for w in re.findall(r'[a-z0-9]+', phrase):
+        if len(w) > 2 and w not in STOPWORDS:
+            out.append(('w:' + w, TOKEN_W))
+    return out
+
+
+def normalize(vec):
+    tot = sum(vec.values())
+    return {k: v / tot for k, v in vec.items()} if tot > 0 else {}
+
+
+def advisor_vector(adv_matches):
+    """adv_matches: [(raw, key, [slug], metode)] -> vektor KK (jumlah 1) atau None."""
+    vec = defaultdict(float)
+    n = 0
+    for _raw, _key, slugs, _m in adv_matches:
+        if not slugs:
+            continue
+        n += 1
+        for s in slugs:
+            vec[s] += 1.0 / len(slugs)
+    if n == 0:
+        return None
+    return {k: v / n for k, v in vec.items()}
+
+
+class Profiles:
+    def __init__(self, recs, slugs):
+        self.slugs = slugs
+        self.N = len(recs)
+        self.counts = defaultdict(lambda: defaultdict(float))
+        self.df = Counter()
+        prior = defaultdict(float)
+        for r in recs:
+            for u in r['units']:
+                self.df[u] += 1
+                if r['D']:
+                    for k, v in r['D'].items():
+                        self.counts[u][k] += v
+            if r['D']:
+                for k, v in r['D'].items():
+                    prior[k] += v
+        tot = sum(prior.values()) or 1.0
+        self.prior = {s: (prior.get(s, 0.0) / tot) or 1e-6 for s in slugs}
+
+    def idf(self, u):
+        return max(0.0, math.log(self.N / self.df[u])) if self.df[u] else 0.0
+
+    def unit_stats(self, rec):
+        """Estimasi P(KK|unit) leave-one-out untuk tiap unit milik tesis ini."""
+        stats = {}
+        for u in rec['units']:
+            other = {s: self.counts[u].get(s, 0.0) for s in self.slugs}
+            if rec['D']:
+                for k, v in rec['D'].items():
+                    other[k] = max(0.0, other[k] - v)
+            n = sum(other.values())
+            if n < KW_MIN_SUPPORT:
+                continue
+            p = {s: (other[s] + KW_PRIOR * self.prior[s]) / (n + KW_PRIOR) for s in self.slugs}
+            w = self.idf(u) * rec['units'][u] * n / (n + KW_PRIOR)
+            if w > 0:
+                stats[u] = (p, w)
+        return stats
+
+
+def keyword_signal(rec, prof):
+    """Return (vektor KK atau None, {slug:[keyword]})."""
+    stats = prof.unit_stats(rec)
+    if not stats:
+        return None, {}
+    agg = defaultdict(float)
+    wsum = sum(w for _, w in stats.values())
+    for p, w in stats.values():
+        for s, v in p.items():
+            agg[s] += w * v / wsum
+    # keyword mana yang condong ke KK mana (untuk chip di UI)
+    by_kk = defaultdict(list)
+    for kw in rec['keywords']:
+        kv, kw_w = defaultdict(float), 0.0
+        for u, _uw in units_of(kw):
+            if u in stats:
+                p, w = stats[u]
+                kw_w += w
+                for s, v in p.items():
+                    kv[s] += w * v
+        if kw_w > 0:
+            best = max(kv, key=kv.get)
+            by_kk[best].append(kw)
+    return normalize(agg), by_kk
+
+
+def prepare(records, lecturers):
+    recs = []
+    for r in records:
+        advisors = extract_advisor_names(r['advisors'])
+        matches = [(raw,) + lecturers.match(raw) for raw in advisors]
+        units = {}
+        for kw in r['keywords']:
+            for u, w in units_of(kw):
+                units[u] = max(w, units.get(u, 0))
+        recs.append({**r, 'advisors': advisors, 'matches': matches, 'D': advisor_vector(matches), 'units': units})
+    return recs
+
+
+def classify_one(rec, prof):
+    sig = {}
+    if rec['D']:
+        sig['dosen'] = rec['D']
+    kvec, kw_by_kk = keyword_signal(rec, prof)
+    if kvec:
+        sig['keyword'] = kvec
+    title = {s: sc for s, (sc, _h) in score_title(rec['title']).items()}
+    title_hits = {s: h for s, (_sc, h) in score_title(rec['title']).items()}
+    if title:
+        sig['title'] = normalize(title)
+
+    reasons = []
+    if rec['advisors'] and not rec['D']:
+        reasons.append('dospem belum ter-map ke KK')
+    if not rec['advisors']:
+        reasons.append('tidak ada data dospem')
+    if not rec['keywords']:
+        reasons.append('kata kunci kosong')
+
+    # skor berbasis KONTEN saja (kata kunci + judul, tanpa dosen): dipakai untuk menyarankan
+    # KK dosen yang belum ter-map
+    cw = {k: WEIGHTS[k] for k in ('keyword', 'title') if k in sig}
+    content = {}
+    if cw:
+        ctot = sum(cw.values())
+        for sname, w in cw.items():
+            for k, v in sig[sname].items():
+                content[k] = content.get(k, 0.0) + w / ctot * v
+
+    if not sig:
+        return [], True, reasons + ['tidak ada sinyal sama sekali'], content
+
+    wsum = sum(WEIGHTS[s] for s in sig)
+    score = defaultdict(float)
+    for s, vec in sig.items():
+        for k, v in vec.items():
+            score[k] += WEIGHTS[s] / wsum * v
+    ranked = sorted(score.items(), key=lambda x: x[1], reverse=True)
+
+    chosen = [ranked[0]]
+    if len(ranked) > 1 and ranked[1][1] >= SECOND_MIN:
+        chosen.append(ranked[1])
+    margin = ranked[0][1] - (ranked[1][1] if len(ranked) > 1 else 0.0)
+    if margin < REVIEW_MARGIN:
+        reasons.append('skor KK 1 dan 2 berdekatan')
+    if set(sig) == {'title'}:
+        reasons.append('hanya sinyal judul')
+
+    adv_by_kk = defaultdict(list)
+    for raw, _key, slugs, _m in rec['matches']:
+        for s in slugs:
+            adv_by_kk[s].append(raw)
+    memberships = []
+    for i, (slug, sc) in enumerate(chosen):
+        kws = list(dict.fromkeys(kw_by_kk.get(slug, []) + title_hits.get(slug, [])))
+        memberships.append({
+            'slug': slug,
+            'role': 'utama' if i == 0 else 'sekunder',
+            'score': round(sc * 100),
+            'keywords': kws,
+            'advisors': adv_by_kk.get(slug, []),
+            'signals': {s: round(sig[s].get(slug, 0.0), 3) for s in sig},
         })
+    return memberships, bool(reasons), reasons, content
 
-    out_df = pd.DataFrame(rows)
-    pd.set_option('display.max_colwidth', 60)
-    print(out_df.to_string(index=False))
 
-    if not os.path.exists(csv_path):
-        print("\n--- Interpretasi demo di atas ---")
-        print("1) Judul karet -> sekarang 'Sistem Industri dan Rantai Nilai' (dulu salah ke Sistem Informasi krn bug ERP).")
-        print("2) Judul perawatan prediktif -> skor Manufaktur & Sistem Informasi berdekatan -> Perlu_Review=True.")
-        print("   Ini SESUAI kenyataan: di poster KKSIK judul serupa ini justru masuk proyek mereka (AI utk maintenance),")
-        print("   padahal topiknya 'sistem produksi' juga relevan ke Manufaktur -> jadi memang beririsan, bukan dipaksa 1.")
-        print("3) Judul 'pengembangan strategi pemasaran ... UMKM' tetap Manajemen Industri (benar, driven by 'pemasaran'/'UMKM'/'startup'-like terms, BUKAN oleh kata 'pengembangan' yang sudah dibuang).")
-        print("4) Judul beban kerja fisik -> tetap solid ke Ergonomi (tidak berubah, karena keyword sudah spesifik dari awal).")
+def run(records, kk, aliases=None):
+    lect = LecturerIndex(kk, aliases)
+    recs = prepare(records, lect)
+    prof = Profiles(recs, list(kk))
+    out = []
+    for r in recs:
+        m, review, reasons, content = classify_one(r, prof)
+        out.append({
+            'id': r['id'], 'no': r['no'], 'url': r['url'], 'judul': r['title'],
+            'author': r['author'], 'nim': r['nim'], 'advisors': r['advisors'],
+            'year': r['year'], 'subject': r['subject'],
+            'keywords_official': r['keywords'],
+            'memberships': m, 'perlu_review': review, 'review_reasons': reasons,
+            'content': {k: round(v, 3) for k, v in content.items()},
+        })
+    return out, recs, lect
 
-    else:
-        output_dir = os.path.join('data', 'tesis_by_specialization_v2')
-        os.makedirs(output_dir, exist_ok=True)
 
-        total = len(out_df)
-        classified_count = 0
-        for spec in SPECIALIZATIONS.values():
-            label = spec['label']
-            sub = out_df[out_df['Klasifikasi'] == label]
-            classified_count += len(sub)
-            fname = label.lower().replace(' ', '_').replace('dan_', '') + '.csv'
-            sub.to_csv(os.path.join(output_dir, fname), index=False, encoding='utf-8-sig', sep='\t')
-            print(f"Disimpan: {os.path.join(output_dir, fname)} ({len(sub)} judul)")
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--explain', help='tampilkan rincian tesis yang judulnya mengandung teks ini')
+    args = ap.parse_args()
+    path = DATA / 'theses.jsonl'
+    if not path.exists():
+        sys.exit('data/theses.jsonl belum ada. Jalankan parse_detail.py dulu.')
+    records = [json.loads(l) for l in open(path, encoding='utf-8')]
+    kk = load_kk()
+    out, recs, lect = run(records, kk, load_aliases())
 
-        # Judul yang skornya 0 di SEMUA kategori (tidak match keyword apapun)
-        # -- WAJIB disimpan, jangan sampai hilang begitu saja dari output.
-        unclassified = out_df[out_df['Klasifikasi'].isna()]
-        unclassified.to_csv(os.path.join(output_dir, 'tidak_terklasifikasi.csv'), index=False, encoding='utf-8-sig', sep='\t')
-        print(f"Disimpan: {os.path.join(output_dir, 'tidak_terklasifikasi.csv')} ({len(unclassified)} judul, TIDAK match keyword apapun)")
+    with open(DATA / 'classified.jsonl', 'w', encoding='utf-8') as f:
+        for o in out:
+            f.write(json.dumps(o, ensure_ascii=False) + '\n')
 
-        review_df = out_df[out_df['Perlu_Review']]
-        review_df.to_csv(os.path.join(output_dir, 'perlu_review.csv'), index=False, encoding='utf-8-sig', sep='\t')
-        print(f"\nJudul yang beririsan/perlu review manual: {len(review_df)} -> {output_dir}/perlu_review.csv")
+    # ---- laporan dosen: belum ter-map digabung PER ORANG (ejaan berbeda -> satu baris) ----
+    groups = {}   # (token pertama, token terakhir) -> {'theses': set(id), 'variants': Counter}
+    fuzzy = Counter()
+    for r in recs:
+        for raw, key, slugs, method in r['matches']:
+            if method == 'unmapped':
+                toks = name_key(raw).split()
+                g = groups.setdefault((toks[0][0], toks[-1]) if toks else ('', ''),   # inisial depan + nama belakang
+                                      {'theses': set(), 'variants': Counter()})
+                g['theses'].add(r['id'])
+                g['variants'][raw] += 1
+            elif method in ('subset', 'fuzzy'):
+                fuzzy[f'{raw}  ->  {lect.display[key]}  [{method}]'] += 1
+    people = sorted(groups.values(), key=lambda g: -len(g['theses']))
+    content_by_id = {o['id']: o['content'] for o in out}
 
-        print(f"\n=== REKAP ===")
-        print(f"Total judul     : {total}")
-        print(f"Terklasifikasi  : {classified_count}")
-        print(f"Tidak match sama sekali : {len(unclassified)}")
-        assert classified_count + len(unclassified) == total, "Ada judul yang hilang, cek logika!"
+    def suggest(g):
+        tot, n = Counter(), 0
+        for tid in g['theses']:
+            c = content_by_id.get(tid)
+            if c:
+                n += 1
+                for k, v in c.items():
+                    tot[k] += v
+        if not n:
+            return 'tanpa sinyal konten'
+        top = [(k, v) for k, v in tot.most_common(2) if v > 0]
+        s_all = sum(tot.values()) or 1.0
+        return 'saran dari konten tesis: ' + ', '.join(f"{kk[k]['abbr']} {v / s_all:.0%}" for k, v in top) + f' (n={n})'
+
+    lines = ['# 1. Dosen BELUM ada di config/kk.yaml, digabung per orang (jumlah tesis)',
+             '#    Salin baris yang sesuai ke KK yang benar di kk.yaml (kolom anggota).',
+             '#    "saran" = KK yang dipilih sistem untuk tesis-tesisnya dari kata kunci+judul (BUKAN dari dosen);',
+             '#    pakai sebagai petunjuk, putuskan sendiri.']
+    for g in people:
+        disp = max(g['variants'], key=lambda v: (len(v), v))
+        lines.append(f'{len(g["theses"]):4d}  - "{disp}"   # {len(g["variants"])} ejaan | {suggest(g)}')
+    lines += ['', '# 2. Dicocokkan otomatis (subset/fuzzy) - pastikan benar; kalau salah tambahkan ke advisor_aliases.yaml']
+    lines += [f'{n:4d}  {name}' for name, n in fuzzy.most_common()]
+    (DATA / 'unmapped_advisors.txt').write_text('\n'.join(lines), encoding='utf-8')
+
+    reasons = Counter(x for o in out for x in o['review_reasons'])
+    combos = Counter('+'.join(sorted(o['memberships'][0]['signals'])) for o in out if o['memberships'])
+
+    n = len(out)
+    cls = sum(1 for o in out if o['memberships'])
+    multi = sum(1 for o in out if len(o['memberships']) > 1)
+    rev = sum(1 for o in out if o['perlu_review'])
+    with_adv = sum(1 for r in recs if r['D'])
+    print(f'{n} tesis | terklasifikasi {cls} | 2 KK {multi} | perlu review {rev}')
+    print(f'Tesis dgn dospem ter-map: {with_adv}/{n} | dosen belum ter-map: {len(people)} orang')
+    print('Per KK (utama):', dict(Counter(o['memberships'][0]['slug'] for o in out if o['memberships'])))
+    print('Alasan perlu_review:', dict(reasons.most_common()))
+    print('Kombinasi sinyal (KK utama):', dict(combos.most_common()))
+    print('Dosen belum ter-map teratas:', [(max(g['variants'], key=len)[:32], len(g['theses'])) for g in people[:8]])
+    print('Detail: data/unmapped_advisors.txt, data/classified.jsonl')
+
+    if args.explain:
+        q = args.explain.lower()
+        for o in out:
+            if q in (o['judul'] or '').lower():
+                print('\n' + o['judul'])
+                print('  dospem:', o['advisors'], '| keyword:', o['keywords_official'])
+                for m in o['memberships']:
+                    print(f"  {m['role']:6s} {m['slug']} skor={m['score']} sinyal={m['signals']} kw={m['keywords']}")
+                print('  review:', o['review_reasons'])
+
+
+if __name__ == '__main__':
+    main()

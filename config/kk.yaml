@@ -1,0 +1,87 @@
+# Sumber kebenaran: dosen -> Kelompok Keahlian (KK).
+# Slug/label/warna sama dengan yang dipakai web/data/thesis-data.json.
+# Nama boleh ditulis lengkap dengan gelar (persis seperti di situs TMI);
+# gelar dibuang otomatis saat pencocokan. Dosen yang masuk >1 KK: tulis di
+# tiap KK yang relevan, skornya dibagi rata.
+# Dosen di data digilib yang belum ada di sini dilaporkan di
+# data/unmapped_advisors.txt setelah menjalankan classify_thesis.py.
+
+sistem_manufaktur:
+  label: "Sistem Manufaktur"
+  abbr: "SM"
+  color: "#b1712c"
+  color_dark: "#d9a35c"
+  ketua: "Prof. Dr. Ir. Iwan Inrawan Wiratmadja"
+  anggota:
+    - "Prof. Dr. Ir. Dradjad Irianto, M.Eng."
+    - "Prof. Dr. Ir. Anas Ma’ruf, M.T., IPM."
+    - "Ir. Rachmawati Wangsaputra, M.T., Ph.D."
+    - "Dr. Ir. Sukoyo, M.T."
+    - "Dr. Wisnu Aribowo, S.T, M.T."
+    - "Mohammad Mi’radj Isnaini, S.T., M.T., Ph.D."
+    - "Muhammad Akbar, S.T., M.T., Ph.D."
+    - "Dr. Fariz Muharram Hasby, S.T., M.T."
+    - "Wildan Trusaji, S.T., M.T."
+    - "Praditya Ajidarma, S.T., MSIE, Ph.D."
+
+manajemen_industri:
+  label: "Manajemen Industri"
+  abbr: "MI"
+  color: "#2f5f7a"
+  color_dark: "#6fa2bd"
+  ketua: "Prof. Dr. Ir. Joko Siswanto, M.PA., IPU."
+  anggota:
+    - "Dr. Ir. Budhi Prihartono, D.E.A., IPM."
+    - "Prof. Dr. Ir. Hasrini Sari, S.T., M.T., IPM."
+    - "Dr. Made Andriani, S.T., M.T."
+    - "Ir. Aldila Rizkiana, S.T., M.T., IPM."
+    - "Anggita Leviastuti, S.T., M.T."
+    - "Dr. Fathiro Hutama Reksa Putra, S.T., M.Sc."
+    - "Ghaida Fatcha Mubiena, S.T., M.T."
+
+sistem_industri_rantai_nilai:
+  label: "Sistem Industri dan Teknoekonomi"
+  abbr: "SITE"
+  color: "#a8402f"
+  color_dark: "#d97a63"
+  ketua: "Ir. Suprayogi, S.T., M.T., Ph.D., IPM."
+  anggota:
+    - "Dr. Andi Cakravastia Arisaputra Raja, S.T., M.T."
+    - "Titah Yudhistira, S.T., M.T., Ph.D."
+    - "Dr.Eng. Yosi Agustina Hidayat, S.T., M.T."
+    - "Dr. Rully Tri Cahyono, S.T., M.T."
+    - "Dr. Saskia Puspa Kenaka, S.T., M.T."
+    - "Dr. Veterina Nosadila Riaventin, S.T., M.Sc."
+    - "Muchammad Arya Zamal, S.T., M.Sc., Ph.D."
+
+ergonomi_rekayasa_kerja:
+  label: "Ergonomi dan Rekayasa Kerja"
+  abbr: "ERK"
+  color: "#5f7a3d"
+  color_dark: "#93b26a"
+  ketua: "Prof. Ir. Hardianto Iridiastadi, MSIE., Ph.D."
+  anggota:
+    - "Prof. Yassierli, S.T., M.T., Ph.D."
+    - "Prof. Ari Widyanti, S.T., M.T., Ph.D."
+    - "Dr. Ir. Herman Rahadian Soetisna, DEA"
+    - "Khoirul Muslim, S.T., MSIE., Ph.D."
+    - "Dr. Dwita Astari Pujiartati, S.T., M.T."
+    - "Gradiyan Budi Pratama, S.T., M.T., M.Sc."
+    - "Putra Alif Ramdhani Yamin, S.T., M.Sc., Ph.D."
+    - "Dr. Wyke Kusmasari, S.T., M.T."
+
+sistem_informasi_keputusan:
+  label: "Sistem Informasi dan Keputusan"
+  abbr: "SIK"
+  color: "#6c4272"
+  color_dark: "#a983b3"
+  ketua: "Prof. Dr. Rajesri Govindaraju, S.T., M.T."
+  anggota:
+    - "Prof. Dr. Ir. Kadarsah Suryadi, DEA"
+    - "Dr. Dissa Riandaso Chandra, S.T., M.T."
+    - "Bunga Kharissa Laras Kemala, S.T., M.T."
+    - "Ni Luh Saddhwi Saraswati Adnyani, S.T., M.T."
+    - "Rifko Rahmat Kurnianto, S.T., M.T."
+    - "Dr. Destina Ratna Asih Khodijah Kadarsah, S.T., M.Sc."
+    - "Ferani Eva Zulvia, S.Si., M.T., Ph.D."
+    - "Dr. Nur Faizatus Sa’idah, S.Si., M.T."
