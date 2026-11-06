@@ -1,0 +1,183 @@
+# Dosen di luar daftar resmi KK (config/kk.yaml).
+#
+# anggota_lain : dosen yang KK-nya TIDAK eksplisit di web TMI (riwayat bimbingan / kesimpulan).
+#   yakin  : 0-1. Menurunkan bobot sinyal dosen. 1.0 = setara dosen resmi.
+#            Aturan awal: prioritas A (>=10 tesis) = 1.0, B (3-9) = 0.6, C (1-2) = 0.35.
+#            Bila KK dosen BEDA dari hasil kata kunci+judul tesisnya, bobotnya turun lagi
+#            (CONFLICT_FACTOR di classify_thesis.py) dan tesis ditandai perlu_review.
+#   pola   : regex pada nama yang sudah dinormalisasi (huruf kecil, tanpa gelar); mencakup
+#            semua ejaan di digilib.
+# tanpa_kk     : dosen yang memang tidak punya KK TMI (SBM, fakultas lain, dosen luar, atau tidak
+#            bisa dipastikan). Tesisnya diklasifikasi dari kata kunci+judul saja, dan tidak
+#            muncul lagi di laporan "belum ter-map".
+
+anggota_lain:
+  sistem_manufaktur:   # Sistem Manufaktur
+    - nama: "Bermawi Priyatna Iskandar"   # 34 tesis, prioritas A
+      pola: 'bermawi'
+      yakin: 1.0
+    - nama: "Abdul Hakim Halim"   # 33 tesis, prioritas A
+      pola: 'hakim halim'
+      yakin: 1.0
+    - nama: "T.M.A. Ari Samadhi"   # 30 tesis, prioritas A
+      pola: 'samadhi'
+      yakin: 1.0
+    - nama: "Isa Setiasyah Toha"   # 16 tesis, prioritas A
+      pola: 'isa setiasyah|\btoha\b'
+      yakin: 1.0
+    - nama: "Harsono Taroepratjeka"   # 10 tesis, prioritas A
+      pola: 'taroepratjeka|tarupratjaka'
+      yakin: 1.0
+    - nama: "Muhamad Sutarno"   # 1 tesis, prioritas C
+      pola: 'sutarno'
+      yakin: 0.35
+  manajemen_industri:   # Manajemen Industri
+    - nama: "S.B. Hari Lubis"   # 18 tesis, prioritas A
+      pola: '\blubis\b'
+      yakin: 1.0
+    - nama: "Iman Sudirman"   # 14 tesis, prioritas A
+      pola: 'sudirman|soedirman'
+      yakin: 1.0
+    - nama: "Indryati Sunaryo"   # 14 tesis, prioritas A
+      pola: 'sunaryo|soenaryo'
+      yakin: 1.0
+    - nama: "I Dewa Gede Raka"   # 13 tesis, prioritas A
+      pola: '\braka\b'
+      yakin: 1.0
+    - nama: "Ali Basyah Siregar"   # 12 tesis, prioritas A
+      pola: 'siregar'
+      yakin: 1.0
+    - nama: "Ubuh Buchara Hidayat"   # 12 tesis, prioritas A
+      pola: '\bubuh\b|ubuhbuchara'
+      yakin: 1.0
+    - nama: "Imam Istiyanto"   # 11 tesis, prioritas A
+      pola: 'istiyanto|istijanto'
+      yakin: 1.0
+    - nama: "Budiarto Subroto"   # 7 tesis, prioritas B
+      pola: 'budiarto subroto'
+      yakin: 0.6
+    - nama: "Sudarso Kaderi Wiryono"   # 6 tesis, prioritas B
+      pola: 'sudarso|wiryono'
+      yakin: 0.6
+    - nama: "Mohammad Faisal"   # 5 tesis, prioritas B
+      pola: '\bfaisal\b'
+      yakin: 0.6
+    - nama: "Nurhayati Ma'mun"   # 5 tesis, prioritas B
+      pola: 'nurhayati|nurhajati'
+      yakin: 0.6
+    - nama: "Bambang Hermanto"   # 3 tesis, prioritas B
+      pola: 'hermanto'
+      yakin: 0.6
+    - nama: "Pamoedji Hardjomidjojo"   # 3 tesis, prioritas B
+      pola: 'hardjomid'
+      yakin: 0.6
+    - nama: "Frans Mardi Hartanto"   # 2 tesis, prioritas C
+      pola: 'frans mardi hartanto'
+      yakin: 0.35
+  sistem_industri_rantai_nilai:   # Sistem Industri dan Teknoekonomi
+    - nama: "Senator Nur Bahagia"   # 23 tesis, prioritas A
+      pola: 'senator|sepator'
+      yakin: 1.0
+    - nama: "Lucia Diawati"   # 14 tesis, prioritas A
+      pola: 'diawati'
+      yakin: 1.0
+    - nama: "Agus Salim Ridwan"   # 10 tesis, prioritas A
+      pola: '\bridwan\b'
+      yakin: 1.0
+    - nama: "Anang Zaini Gani"   # 6 tesis, prioritas B
+      pola: '\banang\b'
+      yakin: 0.6
+    - nama: "Aso Kusuma"   # 2 tesis, prioritas C
+      pola: '\baso kusuma'
+      yakin: 0.35
+    - nama: "Mame Slamet Sutoko"   # 2 tesis, prioritas C
+      pola: 'mame slamet'
+      yakin: 0.35
+  ergonomi_rekayasa_kerja:   # Ergonomi dan Rekayasa Kerja
+    - nama: "Iftikar Z. Sutalaksana"   # 8 tesis, prioritas B
+      pola: 'sutalaksana'
+      yakin: 0.6
+    - nama: "Han Ruhana Anggawisastra"   # 2 tesis, prioritas C
+      pola: 'han ruhana'
+      yakin: 0.35
+    - nama: "Satria Darsa"   # 1 tesis, prioritas C
+      pola: 'satria darsa'
+      yakin: 0.35
+  sistem_informasi_keputusan:   # Sistem Informasi dan Keputusan
+    - nama: "Tota Simatupang"   # 5 tesis, prioritas B
+      pola: 'simatupang'
+      yakin: 0.6
+    - nama: "Darwin"   # 4 tesis, prioritas B
+      pola: '\bdarwin\b'
+      yakin: 0.6
+    - nama: "Aso Kusuma"   # 2 tesis, prioritas C
+      pola: '\baso kusuma'
+      yakin: 0.35
+
+tanpa_kk:
+  - nama: "Hidayat"   # 12 tesis
+    pola: '^hidayat$'
+    alasan: "tidak bisa disimpulkan karena hanya 1 kata"
+  - nama: "Matthias Aroef"   # 11 tesis
+    pola: 'aroef'
+    alasan: "tidak ada kk karena beliau pendiri ti pertama, rekam jejaknya ada di semua kk, kk secara formal dibentuk oct 2005"
+  - nama: "Surna T. Djajadiningrat"   # 7 tesis
+    pola: 'djajadiningrat|djadjadiningrat|\bsurna\b'
+    alasan: "dosen sbm itb semenjak 2003, kk secara formal dibentuk oct 2005"
+  - nama: "Jann Hidajat Tjakraatmadja"   # 5 tesis
+    pola: 'tjakraatmadja|\bjann\b'
+    alasan: "dosen sbm itb semenjak 2003, kk secara formal dibentuk oct 2005"
+  - nama: "Gatot Yudoko"   # 4 tesis
+    pola: 'yudoko|udoko'
+    alasan: "dosen sbm"
+  - nama: "Arson Aliludin"   # 2 tesis
+    pola: 'arson aliludin'
+    alasan: "dosen sbm"
+  - nama: "Hui-Ming Wee"   # 2 tesis
+    pola: '\bwee\b'
+    alasan: "dosen luar / bukan dosen pembimbing"
+  - nama: "Mohamad Halim"   # 2 tesis
+    pola: 'mohamad halim'
+    alasan: "tidak ada di pencarian"
+  - nama: "Shi-Woei Lin"   # 2 tesis
+    pola: 'woei'
+    alasan: "dosen luar / bukan dosen pembimbing"
+  - nama: "Biemo W S"   # 1 tesis
+    pola: '\bbiemo\b'
+    alasan: "Prof. Ir. Biemo Woerjanto Soemardi, M.S.E., Ph.D dosen ftsl bukan fti"
+  - nama: "Chao Ou-Yang"   # 1 tesis
+    pola: 'ou-yang|ou yang'
+    alasan: "dosen luar / bukan dosen pembimbing"
+  - nama: "Danu Ariono"   # 1 tesis
+    pola: 'danu ariono'
+    alasan: "bukan dosen ti/mr, beliau dosen teknik kimia (di bawah fti juga)"
+  - nama: "Darmawan Harsokoesoemo"   # 1 tesis
+    pola: 'darmawan harsokoesoemo'
+    alasan: "bukan fti, beliau dosen ftmd"
+  - nama: "Ilyas Suratman"   # 1 tesis
+    pola: 'ilyas suratman'
+    alasan: "dosen ftsl bukan fti"
+  - nama: "Kuntoro Mangkusubroto"   # 1 tesis
+    pola: '\bkuntoro\b'
+    alasan: "dosen sbm itb semenjak 2003, kk secara formal dibentuk oct 2005"
+  - nama: "Leksananto G"   # 1 tesis
+    pola: '\bleksananto\b'
+    alasan: "muncul di web lab sik sebagai asisten profesor, tapi gatau pasti kk apa sebenernya"
+  - nama: "M. Tasrif Arif"   # 1 tesis
+    pola: 'tasrif arif'
+    alasan: "dosen sappk bukan fti"
+  - nama: "Riodwan Suhud"   # 1 tesis
+    pola: 'riodwan suhud'
+    alasan: "dosen ftsl bukan fti"
+  - nama: "Suprijanto"   # 1 tesis
+    pola: '\bsuprijanto\b'
+    alasan: "bukan dosen ti/mr, beliau dosen instrumentasi kontrol teknik fisika (di bawah fti juga)"
+  - nama: "Taufiqurrahman"   # 1 tesis
+    pola: '\btaufiqurrahman\b'
+    alasan: "belum jelas, ada yang dosen sith, ada yang alumnus doktor di bidang erk"
+  - nama: "Vincent F yu"   # 1 tesis
+    pola: '\bvincent\b'
+    alasan: "dosen luar / bukan dosen pembimbing"
+  - nama: "Yul Yunazwin"   # 1 tesis
+    pola: 'yul yunazwin'
+    alasan: "bukan dosen ti/mr, beliau dosen instrumentasi kontrol teknik fisika (di bawah fti juga)"

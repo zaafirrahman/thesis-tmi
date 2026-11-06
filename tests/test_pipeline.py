@@ -236,6 +236,106 @@ class FetchFallback(unittest.TestCase):
         self.assertIn('200-bukan-detail', log)
 
 
+EXTRA = {'anggota_lain': {'sistem_manufaktur': [{'nama': 'Dosen Contoh', 'pola': 'contoh', 'yakin': 0.35}]},
+         'tanpa_kk': [{'nama': 'Orang Sbm', 'pola': 'orang sbm', 'alasan': 'dosen sbm'}]}
+
+
+class Reliability(unittest.TestCase):
+    JS = 'Prof. Dr. Ir. Joko Siswanto, M.PA.'   # resmi, manajemen_industri
+
+    @staticmethod
+    def _fillers(n=30):
+        # tesis pengisi tanpa kata kunci itu, agar IDF kata kunci uji > 0
+        return [rec(200 + i, f'Pengisi {i}', [], [f'kata lain {i}']) for i in range(n)]
+
+    def _recs(self, advisor):
+        recs = [rec(i, f'Judul netral {i}', [self.JS], ['strategi bisnis']) for i in range(6)]
+        recs.append(rec(99, 'Judul netral X', [advisor], ['strategi bisnis']))
+        return recs + self._fillers()
+
+    def test_pola_and_tanpa_kk_matching(self):
+        idx = LecturerIndex(load_kk(), None, EXTRA)
+        k, slugs, m = idx.match('Dr. Ir. Z. Contoh Lain, M.T')
+        self.assertEqual((slugs, m, idx.reliability(k)), (['sistem_manufaktur'], 'pola', 0.35))
+        self.assertEqual(idx.match('Orang SBM, Dr')[1:], ([], 'tanpa_kk'))
+        self.assertEqual(idx.reliability(idx.match(self.JS)[0]), 1.0)
+
+    def test_unsure_dosen_loses_to_conflicting_content(self):
+        out, _, _ = run(self._recs('Dosen Contoh'), load_kk(), None, EXTRA)
+        o = [x for x in out if x['id'] == '99'][0]
+        self.assertEqual(o['memberships'][0]['slug'], 'manajemen_industri')   # ikut konten
+        self.assertIn('KK dosen (perkiraan) berbeda dengan konten', o['review_reasons'])
+        self.assertEqual(o['dosen_yakin'], 0.35)
+
+    def test_confident_dosen_still_wins(self):
+        extra = {'anggota_lain': {'sistem_manufaktur': [{'nama': 'Dosen Contoh', 'pola': 'contoh', 'yakin': 1.0}]}}
+        out, _, _ = run(self._recs('Dosen Contoh'), load_kk(), None, extra)
+        o = [x for x in out if x['id'] == '99'][0]
+        self.assertEqual(o['memberships'][0]['slug'], 'sistem_manufaktur')
+        self.assertNotIn('KK dosen (perkiraan) berbeda dengan konten', o['review_reasons'])
+
+    def test_tanpa_kk_goes_by_content_and_is_not_flagged_unmapped(self):
+        out, _, _ = run(self._recs('Orang SBM'), load_kk(), None, EXTRA)
+        o = [x for x in out if x['id'] == '99'][0]
+        self.assertEqual(o['memberships'][0]['slug'], 'manajemen_industri')
+        self.assertNotIn('dospem belum ter-map ke KK', o['review_reasons'])
+
+    def test_unsure_lecturer_contributes_less_to_keyword_profile(self):
+        # 6 tesis 'Dosen Contoh'(SM, yakin .35) vs 6 tesis resmi MI: keyword tetap condong ke MI
+        recs = [rec(i, 'J', ['Dosen Contoh'], ['kata bersama']) for i in range(6)]
+        recs += [rec(10 + i, 'J', [self.JS], ['kata bersama']) for i in range(6)]
+        recs.append(rec(99, 'J', ['Dosen Tak Dikenal'], ['kata bersama']))
+        recs += self._fillers()
+        out, _, _ = run(recs, load_kk(), None, EXTRA)
+        o = [x for x in out if x['id'] == '99'][0]
+        self.assertEqual(o['memberships'][0]['slug'], 'manajemen_industri')
+
+
+class AbstractFallback(unittest.TestCase):
+    JS = 'Prof. Dr. Ir. Joko Siswanto, M.PA.'      # manajemen_industri
+    HI = 'Prof. Ir. Hardianto Iridiastadi, MSIE., Ph.D.'   # ergonomi
+
+    def _corpus(self):
+        MI = 'kepemimpinan organisasi budaya strategi pemasaran konsumen persaingan bisnis perusahaan'
+        ER = 'postur kerja ergonomi beban fisik kelelahan operator antropometri risiko cedera'
+        recs = []
+        for i in range(8):
+            r = rec(i, f'Judul netral {i}', [self.JS], [f'kw mi {i}']); r['abstract'] = MI + f' kasus{i}'
+            recs.append(r)
+        for i in range(8):
+            r = rec(20 + i, f'Judul lain {i}', [self.HI], [f'kw er {i}']); r['abstract'] = ER + f' contoh{i}'
+            recs.append(r)
+        for i in range(30):
+            r = rec(100 + i, f'Pengisi {i}', [f'Tak Dikenal {i}'], [f'kw acak {i}']); r['abstract'] = f'dokumen acak nomor{i} bahasan{i}'
+            recs.append(r)
+        return recs
+
+    def test_abstract_rescues_thesis_without_advisor_and_keywords(self):
+        recs = self._corpus()
+        t = rec(999, 'Kajian tanpa petunjuk', [], [])
+        t['abstract'] = 'strategi pemasaran konsumen persaingan bisnis perusahaan organisasi budaya'
+        out, _, _ = run(recs + [t], load_kk())
+        o = [x for x in out if x['id'] == '999'][0]
+        self.assertEqual(o['memberships'][0]['slug'], 'manajemen_industri')
+        self.assertIn('abstract', o['memberships'][0]['signals'])
+        self.assertIn('tanpa dosen & kata kunci (abstrak+judul)', o['review_reasons'])
+
+    def test_abstract_not_used_when_dosen_or_keyword_available(self):
+        recs = self._corpus()
+        out, _, _ = run(recs, load_kk())
+        for o in out:
+            if o['id'] in ('0', '20'):
+                self.assertNotIn('abstract', o['memberships'][0]['signals'])
+
+    def test_too_few_supported_words_gives_no_abstract_signal(self):
+        recs = self._corpus()
+        t = rec(999, 'zzz qqq', [], [])
+        t['abstract'] = 'strategi pemasaran'          # < ABS_MIN_WORDS kata berdukungan
+        out, _, _ = run(recs + [t], load_kk())
+        o = [x for x in out if x['id'] == '999'][0]
+        self.assertEqual(o['memberships'], [])
+
+
 class Keywords(unittest.TestCase):
     def test_trailing_period_and_blanks(self):
         self.assertEqual(split_keywords('Pembelajaran, UMKM Fesyen,  Learning Management System. ,'),

@@ -20,16 +20,28 @@ import sys
 from collections import Counter, defaultdict
 
 from common import DATA
-from names import LecturerIndex, extract_advisor_names, load_aliases, load_kk, name_key
+from names import LecturerIndex, extract_advisor_names, load_aliases, load_extra, load_kk, name_key
 from title_keywords import score_title
 
 # ---- konfigurasi (silakan di-tuning) --------------------------------------
-WEIGHTS = {'dosen': 0.50, 'keyword': 0.35, 'title': 0.15}
+WEIGHTS = {'dosen': 0.50, 'keyword': 0.35, 'title': 0.15,
+           'abstract': 0.35}   # abstrak HANYA dipakai bila tesis tak punya sinyal dosen & kata kunci
 SECOND_MIN = 0.25        # skor minimum KK kedua
 REVIEW_MARGIN = 0.15     # selisih skor 1-2 di bawah ini -> perlu_review
+CONFLICT_FACTOR = 0.5    # dosen ber-yakin<1 yang KK-nya BEDA dari konten tesis: bobot dosen x ini
 KW_MIN_SUPPORT = 1.0     # minimal "dukungan" dari tesis lain agar keyword dipakai
 KW_PRIOR = 2.0           # kekuatan prior (distribusi KK global) pada estimasi keyword
 PHRASE_W, TOKEN_W = 1.0, 0.6
+ABS_MIN_WORDS = 5        # minimal kata abstrak yang punya dukungan agar sinyal abstrak dipakai
+ABS_MAX_DF = 0.20        # kata yang muncul di >20% tesis dianggap umum, diabaikan
+ABS_STOP = {
+    'yang', 'dengan', 'untuk', 'pada', 'dalam', 'dari', 'adalah', 'dapat', 'oleh', 'sebagai', 'atau',
+    'serta', 'juga', 'tidak', 'akan', 'telah', 'antara', 'hasil', 'berdasarkan', 'menggunakan',
+    'tersebut', 'terhadap', 'sehingga', 'karena', 'lebih', 'masih', 'namun', 'tetapi', 'setelah',
+    'sebelum', 'dilakukan', 'digunakan', 'dibuat', 'dibangun', 'memiliki', 'menjadi', 'sebuah',
+    'beberapa', 'melalui', 'secara', 'bahwa', 'tahun', 'tesis', 'that', 'this', 'with', 'from',
+    'which', 'have', 'were', 'been', 'their', 'these', 'also', 'such', 'than', 'into', 'used',
+}
 STOPWORDS = {
     'dan', 'yang', 'di', 'dengan', 'untuk', 'pada', 'dalam', 'studi', 'kasus',
     'model', 'sistem', 'analisis', 'penelitian', 'pengembangan', 'metode',
@@ -51,6 +63,12 @@ def units_of(keyword):
         if len(w) > 2 and w not in STOPWORDS:
             out.append(('w:' + w, TOKEN_W))
     return out
+
+
+def abstract_words(text):
+    """Himpunan kata bermakna dari abstrak (>=4 huruf, bukan stopword)."""
+    return {w for w in re.findall(r'[a-z]{4,}', (text or '').lower())
+            if w not in STOPWORDS and w not in ABS_STOP}
 
 
 def normalize(vec):
@@ -79,16 +97,23 @@ class Profiles:
         self.N = len(recs)
         self.counts = defaultdict(lambda: defaultdict(float))
         self.df = Counter()
+        self.abs_counts = defaultdict(lambda: defaultdict(float))
+        self.abs_df = Counter()
         prior = defaultdict(float)
         for r in recs:
             for u in r['units']:
                 self.df[u] += 1
                 if r['D']:
                     for k, v in r['D'].items():
-                        self.counts[u][k] += v
+                        self.counts[u][k] += v * r['R']     # dosen kurang yakin = kontribusi lebih kecil
+            for w in r['abs_words']:
+                self.abs_df[w] += 1
+                if r['D']:
+                    for k, v in r['D'].items():
+                        self.abs_counts[w][k] += v * r['R']
             if r['D']:
                 for k, v in r['D'].items():
-                    prior[k] += v
+                    prior[k] += v * r['R']
         tot = sum(prior.values()) or 1.0
         self.prior = {s: (prior.get(s, 0.0) / tot) or 1e-6 for s in slugs}
 
@@ -102,7 +127,7 @@ class Profiles:
             other = {s: self.counts[u].get(s, 0.0) for s in self.slugs}
             if rec['D']:
                 for k, v in rec['D'].items():
-                    other[k] = max(0.0, other[k] - v)
+                    other[k] = max(0.0, other[k] - v * rec['R'])
             n = sum(other.values())
             if n < KW_MIN_SUPPORT:
                 continue
@@ -139,6 +164,32 @@ def keyword_signal(rec, prof):
     return normalize(agg), by_kk
 
 
+def abstract_signal(rec, prof):
+    """Vektor KK dari kata-kata abstrak (leave-one-out), atau None bila dukungan kurang."""
+    agg, wsum, used = defaultdict(float), 0.0, 0
+    for w in rec['abs_words']:
+        df = prof.abs_df[w]
+        if df < 2 or df > ABS_MAX_DF * prof.N:
+            continue
+        other = {k: prof.abs_counts[w].get(k, 0.0) for k in prof.slugs} if w in prof.abs_counts else {k: 0.0 for k in prof.slugs}
+        if rec['D']:
+            for k, v in rec['D'].items():
+                other[k] = max(0.0, other[k] - v * rec['R'])
+        n = sum(other.values())
+        if n < KW_MIN_SUPPORT:
+            continue
+        wgt = math.log(prof.N / df) * n / (n + KW_PRIOR)
+        if wgt <= 0:
+            continue
+        used += 1
+        wsum += wgt
+        for k in prof.slugs:
+            agg[k] += wgt * (other[k] + KW_PRIOR * prof.prior[k]) / (n + KW_PRIOR)
+    if used < ABS_MIN_WORDS or wsum <= 0:
+        return None
+    return normalize(agg)
+
+
 def prepare(records, lecturers):
     recs = []
     for r in records:
@@ -148,7 +199,11 @@ def prepare(records, lecturers):
         for kw in r['keywords']:
             for u, w in units_of(kw):
                 units[u] = max(w, units.get(u, 0))
-        recs.append({**r, 'advisors': advisors, 'matches': matches, 'D': advisor_vector(matches), 'units': units})
+        abs_words = abstract_words(r.get('abstract'))
+        rels = [lecturers.reliability(key) for _raw, key, slugs, _m in matches if slugs]
+        recs.append({**r, 'advisors': advisors, 'matches': matches, 'D': advisor_vector(matches),
+                     'R': (sum(rels) / len(rels)) if rels else 1.0, 'units': units,
+                     'abs_words': abs_words})
     return recs
 
 
@@ -164,8 +219,13 @@ def classify_one(rec, prof):
     if title:
         sig['title'] = normalize(title)
 
+    if 'dosen' not in sig and 'keyword' not in sig:      # titik lemah: pakai abstrak sebagai cadangan
+        avec = abstract_signal(rec, prof)
+        if avec:
+            sig['abstract'] = avec
+
     reasons = []
-    if rec['advisors'] and not rec['D']:
+    if rec['advisors'] and not rec['D'] and any(m[3] == 'unmapped' for m in rec['matches']):
         reasons.append('dospem belum ter-map ke KK')
     if not rec['advisors']:
         reasons.append('tidak ada data dospem')
@@ -185,11 +245,21 @@ def classify_one(rec, prof):
     if not sig:
         return [], True, reasons + ['tidak ada sinyal sama sekali'], content
 
-    wsum = sum(WEIGHTS[s] for s in sig)
+    weights = {s: WEIGHTS[s] for s in sig}
+    if 'dosen' in sig and rec['R'] < 1.0:
+        f = rec['R']                                  # KK dosen tidak eksplisit -> bobot turun
+        if content:
+            top_d = max(sig['dosen'].values())
+            d_kks = {k for k, v in sig['dosen'].items() if v >= 0.5 * top_d}
+            if max(content, key=content.get) not in d_kks:
+                f *= CONFLICT_FACTOR                  # ...dan beda dari konten -> turun lagi
+                reasons.append('KK dosen (perkiraan) berbeda dengan konten')
+        weights['dosen'] *= f
+    wsum = sum(weights.values())
     score = defaultdict(float)
     for s, vec in sig.items():
         for k, v in vec.items():
-            score[k] += WEIGHTS[s] / wsum * v
+            score[k] += weights[s] / wsum * v
     ranked = sorted(score.items(), key=lambda x: x[1], reverse=True)
 
     chosen = [ranked[0]]
@@ -200,6 +270,8 @@ def classify_one(rec, prof):
         reasons.append('skor KK 1 dan 2 berdekatan')
     if set(sig) == {'title'}:
         reasons.append('hanya sinyal judul')
+    if 'abstract' in sig:
+        reasons.append('tanpa dosen & kata kunci (abstrak+judul)')
 
     adv_by_kk = defaultdict(list)
     for raw, _key, slugs, _m in rec['matches']:
@@ -219,8 +291,8 @@ def classify_one(rec, prof):
     return memberships, bool(reasons), reasons, content
 
 
-def run(records, kk, aliases=None):
-    lect = LecturerIndex(kk, aliases)
+def run(records, kk, aliases=None, extra=None):
+    lect = LecturerIndex(kk, aliases, extra)
     recs = prepare(records, lect)
     prof = Profiles(recs, list(kk))
     out = []
@@ -233,6 +305,7 @@ def run(records, kk, aliases=None):
             'keywords_official': r['keywords'],
             'memberships': m, 'perlu_review': review, 'review_reasons': reasons,
             'content': {k: round(v, 3) for k, v in content.items()},
+            'dosen_yakin': round(r['R'], 2),
         })
     return out, recs, lect
 
@@ -246,7 +319,7 @@ def main():
         sys.exit('data/theses.jsonl belum ada. Jalankan parse_detail.py dulu.')
     records = [json.loads(l) for l in open(path, encoding='utf-8')]
     kk = load_kk()
-    out, recs, lect = run(records, kk, load_aliases())
+    out, recs, lect = run(records, kk, load_aliases(), load_extra())
 
     with open(DATA / 'classified.jsonl', 'w', encoding='utf-8') as f:
         for o in out:
@@ -263,7 +336,7 @@ def main():
                                       {'theses': set(), 'variants': Counter()})
                 g['theses'].add(r['id'])
                 g['variants'][raw] += 1
-            elif method in ('subset', 'fuzzy'):
+            elif method in ('subset', 'fuzzy', 'abbrev', 'pola'):
                 fuzzy[f'{raw}  ->  {lect.display[key]}  [{method}]'] += 1
     people = sorted(groups.values(), key=lambda g: -len(g['theses']))
     content_by_id = {o['id']: o['content'] for o in out}
@@ -304,6 +377,9 @@ def main():
     print(f'{n} tesis | terklasifikasi {cls} | 2 KK {multi} | perlu review {rev}')
     print(f'Tesis dgn dospem ter-map: {with_adv}/{n} | dosen belum ter-map: {len(people)} orang')
     print('Per KK (utama):', dict(Counter(o['memberships'][0]['slug'] for o in out if o['memberships'])))
+    n_unsure = sum(1 for o in out if o['dosen_yakin'] < 1.0 and o['memberships'])
+    n_conf = sum(1 for o in out if 'KK dosen (perkiraan) berbeda dengan konten' in o['review_reasons'])
+    print(f'Tesis dgn dosen kurang-yakin (bobot diturunkan): {n_unsure} | konflik dosen vs konten: {n_conf}')
     print('Alasan perlu_review:', dict(reasons.most_common()))
     print('Kombinasi sinyal (KK utama):', dict(combos.most_common()))
     print('Dosen belum ter-map teratas:', [(max(g['variants'], key=len)[:32], len(g['theses'])) for g in people[:8]])

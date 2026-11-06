@@ -99,6 +99,17 @@ def load_kk(path=None):
         return yaml.safe_load(f)
 
 
+def load_extra(path=None):
+    """config/dosen_lain.yaml: dosen yang KK-nya tidak eksplisit (dengan tingkat 'yakin') dan
+    dosen 'tanpa_kk'. File opsional."""
+    p = path or CONFIG / 'dosen_lain.yaml'
+    try:
+        with open(p, encoding='utf-8') as f:
+            return yaml.safe_load(f) or {}
+    except FileNotFoundError:
+        return {}
+
+
 def load_aliases(path=None):
     p = path or CONFIG / 'advisor_aliases.yaml'
     try:
@@ -112,10 +123,13 @@ def load_aliases(path=None):
 class LecturerIndex:
     """Peta nama (kunci ternormalisasi) -> daftar slug KK."""
 
-    def __init__(self, kk, aliases=None):
+    def __init__(self, kk, aliases=None, extra=None):
         self.aliases = aliases or {}
         self.kks = {}       # key -> [slug,...]
         self.display = {}   # key -> nama tampilan
+        self.rel = {}       # key -> tingkat keyakinan dosen->KK (resmi = 1.0)
+        self.pola = []      # (regex, key): dosen tambahan, cocok lewat pola nama
+        self.none_pola = [] # (regex, key): dosen TANPA KK TMI
         for slug, spec in kk.items():
             for nm in [spec.get('ketua')] + list(spec.get('anggota') or []):
                 if not nm:
@@ -125,6 +139,26 @@ class LecturerIndex:
                 if slug not in self.kks[key]:
                     self.kks[key].append(slug)
                 self.display.setdefault(key, nm)
+        extra = extra or {}
+        seen_pola = {}
+        for slug, entries in (extra.get('anggota_lain') or {}).items():
+            for e in entries or []:
+                key = name_key(e['nama'])
+                self.kks.setdefault(key, [])
+                if slug not in self.kks[key]:
+                    self.kks[key].append(slug)
+                self.display.setdefault(key, e['nama'])
+                self.rel[key] = min(float(e.get('yakin', 1.0)), self.rel.get(key, 1.0))
+                if e.get('pola') and key not in seen_pola:
+                    seen_pola[key] = True
+                    self.pola.append((re.compile(e['pola']), key))
+        for e in extra.get('tanpa_kk') or []:
+            key = name_key(e['nama'])
+            self.display.setdefault(key, e['nama'])
+            self.none_pola.append((re.compile(e['pola']), key))
+
+    def reliability(self, key):
+        return self.rel.get(key, 1.0)
 
     def match(self, raw):
         """Return (key|None, [slug], metode)."""
@@ -132,6 +166,12 @@ class LecturerIndex:
         key = self.aliases.get(key, key)
         if key in self.kks:
             return key, self.kks[key], ('alias' if name_key(raw) in self.aliases else 'exact')
+        for rx, k in self.pola:                  # dosen tambahan lewat pola nama
+            if rx.search(key):
+                return k, self.kks[k], 'pola'
+        for rx, k in self.none_pola:             # dosen yang memang tanpa KK TMI
+            if rx.search(key):
+                return k, [], 'tanpa_kk'
         dt = key.split()
         toks = set(dt)
         if toks:
