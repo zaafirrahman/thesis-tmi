@@ -26,6 +26,25 @@ def fix_href(href):
     return re.sub(r'[\t\n\r]', '', href).strip().replace(' ', '%20')
 
 
+def angkatan_from_nim(nim, today_year=None):
+    """Angkatan masuk dari NIM S2 format '234YYNNN' (mis. 23416012 -> 2016).
+    YY 70-99 berarti 1970-1999. Format lain (mis. 'S2-758403') -> None. Ini angkatan, BUKAN tahun terbit."""
+    import datetime
+    m = re.fullmatch(r'234(\d{2})\d{3}', (nim or '').strip())
+    if not m:
+        return None
+    yy = int(m.group(1))
+    year = (1900 + yy) if yy >= 70 else (2000 + yy)
+    return year if year <= (today_year or datetime.date.today().year) else None
+
+
+def usable_abstract(text, min_len=80):
+    """Abstrak asli, bukan placeholder. Di digilib banyak tesis lama berabstrak 1 huruf
+    ('P', 'S'), '-', atau 'Abstrak bisa dilihat di filenya' -> dianggap tidak ada."""
+    t = clean(text)
+    return t if len(t) >= min_len else None
+
+
 def canonical_url(href):
     """Buang query (?rows=..&per_page=..) dan trailing slash."""
     return fix_href(href).split('?', 1)[0].rstrip('/')

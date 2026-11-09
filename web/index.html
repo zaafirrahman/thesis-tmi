@@ -35,7 +35,7 @@
   <header class="masthead">
     <div>
       <h1>Katalog Tesis TMI</h1>
-      <p class="dek">Kumpulan judul tesis, dipetakan otomatis ke kelompok keilmuan berdasarkan kedekatan kata kunci &mdash; <em>bukan</em> penilaian resmi dari tiap kelompok keahlian. Banyak judul melintasi lebih dari satu kelompok &mdash; dibuat untuk menelusuri kecenderungan topik sebelum menentukan preferensi penelitian.</p>
+      <p class="dek">Kumpulan judul tesis, dipetakan otomatis ke kelompok keilmuan berdasarkan dosen pembimbing, kata kunci, dan abstrak &mdash; <em>bukan</em> penilaian resmi dari tiap kelompok keahlian. Banyak judul melintasi lebih dari satu kelompok &mdash; dibuat untuk menelusuri kecenderungan topik sebelum menentukan preferensi penelitian.</p>
     </div>
     <div class="meta">
       <strong id="totalCount">—</strong>
@@ -57,12 +57,15 @@
   <div class="controls">
     <div class="search-box">
       <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-      <input id="searchInput" type="text" placeholder="Cari judul atau kata kunci…" autocomplete="off">
+      <input id="searchInput" type="text" placeholder="Cari judul, kata kunci, penulis, atau dosen…" autocomplete="off">
     </div>
     <select id="sortSelect">
       <option value="no">Urut · nomor asli</option>
       <option value="conf">Urut · skor utama tertinggi</option>
       <option value="az">Urut · judul A–Z</option>
+    </select>
+    <select id="advisorSelect" aria-label="Filter dosen pembimbing">
+      <option value="">Semua dosen pembimbing</option>
     </select>
     <label class="review-toggle">
       <input type="checkbox" id="reviewToggle">
@@ -102,7 +105,7 @@
   </div>
 
   <footer>
-    Setiap judul dapat memiliki kelompok utama dan kelompok kedua sekaligus &mdash; garis tepi kartu menunjukkan kedua warna itu ketika keduanya ada. Klasifikasi kelompok di halaman ini dihasilkan otomatis dari kedekatan kata kunci pada judul dengan daftar kata kunci tiap kelompok keilmuan, <strong>bukan</strong> penilaian resmi dari KK yang bersangkutan &mdash; klik sebuah kelompok lalu &ldquo;Lihat kata kunci pencocokan&rdquo; untuk lihat daftar lengkapnya. Skor menunjukkan jumlah penanda kata kunci yang cocok saat klasifikasi otomatis dijalankan, bukan penilaian kualitas atau kelayakan topik. Judul bertanda &ldquo;perlu ditinjau ulang&rdquo; adalah yang skor kelompok utama dan keduanya berdekatan, sehingga klasifikasinya belum tegas dan sebaiknya dicek manual. Klik judul untuk membuka halaman Digilib ITB &mdash; tautannya ditebak otomatis dari judul, jadi bisa 404 untuk sebagian judul terbaru yang URL aslinya menyertakan NIM penulis (kami tidak punya data NIM). Kalau itu terjadi, pakai ikon kaca pembesar di sebelah judul untuk mencari halaman aslinya lewat Google. Sumber: berkas CSV kelompok keilmuan yang diunggah.
+    Setiap judul dapat memiliki kelompok utama dan kelompok kedua sekaligus &mdash; garis tepi kartu menunjukkan kedua warna itu ketika keduanya ada. Klasifikasi dihasilkan otomatis dari empat sinyal: kelompok keilmuan <strong>dosen pembimbing</strong>, <strong>kata kunci resmi</strong> di Digilib, <strong>isi abstrak</strong>, dan kata pada judul (bobot sangat kecil) &mdash; <strong>bukan</strong> penilaian resmi dari KK yang bersangkutan. Dosen yang kelompoknya tidak tercantum eksplisit (misalnya yang sudah purnabakti) diberi bobot lebih rendah. Pada pengujian terhadap tesis yang dosennya ada di daftar resmi KK, isi tesis (tanpa melihat dosen) cocok dengan kelompok dosennya sekitar tiga perempat kali; tesis lama yang di Digilib hanya punya judul adalah yang paling lemah klasifikasinya. Skor adalah persentase kontribusi tiap kelompok pada satu tesis (jumlahnya 100%), bukan penilaian kualitas atau kelayakan topik. Judul bertanda &ldquo;perlu ditinjau ulang&rdquo; punya sinyal yang tipis, berdekatan, atau bertentangan &mdash; arahkan kursor ke tandanya untuk melihat alasannya. Klik judul untuk membuka halaman aslinya di Digilib ITB. &ldquo;Terbit&rdquo; adalah tahun terbit di Digilib (banyak tesis lama tidak mencantumkannya), sedangkan &ldquo;Angkatan&rdquo; dibaca dari NIM dan biasanya 2&ndash;3 tahun lebih awal dari tahun terbit. Sumber: Perpustakaan Digital ITB, data per <span id="dataDate">—</span>.
   </footer>
 
 </div>

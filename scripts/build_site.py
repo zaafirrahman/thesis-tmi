@@ -1,44 +1,72 @@
-"""Bangun web/data/thesis-data.json dari data/classified.jsonl + config/kk.yaml.
+"""Bangun web/data/thesis-data.json + web/data/abstracts.json dari data/classified.jsonl.
 
 Pakai:  python scripts/build_site.py
-Skema kompatibel dengan web/js/app.js (groups, theses[].no/judul/memberships/perlu_review)
-plus field baru: url, author, advisors, year, subject, keywords_official.
+
+thesis-data.json : groups (+ daftar dosen resmi tiap KK) dan theses[] dengan
+                   no, judul, url, author, advisors (nama kanonik), year (tahun terbit), angkatan (dari NIM), subject,
+                   keywords_official, has_abstract, perlu_review, review_reasons, memberships.
+abstracts.json   : {no: teks abstrak}, dimuat web hanya saat abstrak dibuka.
 """
 import json
 import sys
 from datetime import date
 
-from common import DATA, ROOT
-from names import KK_META, load_kk
+from common import DATA, ROOT, angkatan_from_nim, usable_abstract
+from names import KK_META, LecturerIndex, load_aliases, load_extra, load_kk, name_key
+
+
+def short(name):
+    """'Prof. Dr. Rajesri Govindaraju, S.T., M.T.' -> 'Prof. Dr. Rajesri Govindaraju' (tanpa gelar belakang)."""
+    return ' '.join(name.split(',', 1)[0].split()).strip(' .') or name
 
 
 def main():
     path = DATA / 'classified.jsonl'
     if not path.exists():
         sys.exit('data/classified.jsonl belum ada. Jalankan classify_thesis.py dulu.')
+    kk = load_kk()
+    idx = LecturerIndex(kk, load_aliases(), load_extra())
+
+    def canonical(raw):
+        """Satukan ejaan berbeda dari dosen yang sama ke satu nama tampilan."""
+        key, _slugs, method = idx.match(raw)
+        if key and method != 'unmapped':
+            return short(idx.display.get(key, raw))
+        return short(raw)
+
     abstracts = {}
     tpath = DATA / 'theses.jsonl'
     if tpath.exists():
         for line in open(tpath, encoding='utf-8'):
             t = json.loads(line)
-            if t.get('abstract'):
-                abstracts[str(t['no'])] = t['abstract']
-    kk = load_kk()
-    groups = [{'slug': s, **{k: spec[k] for k in KK_META}} for s, spec in kk.items()]
+            ab = usable_abstract(t.get('abstract'))   # buang placeholder ('P', '-', ...)
+            if ab:
+                abstracts[str(t['no'])] = ab
+
+    groups = []
+    for slug, spec in kk.items():
+        g = {'slug': slug, **{k: spec[k] for k in KK_META}}
+        g['ketua'] = short(spec['ketua'])
+        g['anggota'] = [short(n) for n in spec.get('anggota', [])]
+        groups.append(g)
+
     theses = []
     for line in open(path, encoding='utf-8'):
         o = json.loads(line)
+        advisors = list(dict.fromkeys(canonical(a) for a in o['advisors']))
         theses.append({
             'no': str(o['no']),
             'judul': o['judul'],
             'url': o['url'],
             'author': o['author'],
-            'advisors': o['advisors'],
+            'advisors': advisors,
             'year': o['year'],
+            'angkatan': angkatan_from_nim(o.get('nim')),
             'subject': o['subject'],
             'keywords_official': o['keywords_official'],
             'has_abstract': str(o['no']) in abstracts,
             'perlu_review': o['perlu_review'],
+            'review_reasons': o['review_reasons'],
             'memberships': [
                 {'slug': m['slug'], 'role': m['role'], 'score': m['score'],
                  'keywords': m['keywords'], 'advisors': m['advisors']}
@@ -50,7 +78,6 @@ def main():
     with open(out, 'w', encoding='utf-8') as f:
         json.dump({'generated': date.today().isoformat(), 'groups': groups, 'theses': theses},
                   f, ensure_ascii=False, separators=(',', ':'))
-    # abstrak dipisah dari JSON utama: ~1-2 MB, dimuat web hanya saat dibutuhkan
     with open(out.parent / 'abstracts.json', 'w', encoding='utf-8') as f:
         json.dump(abstracts, f, ensure_ascii=False, separators=(',', ':'))
     print(f'{len(theses)} tesis -> {out}')

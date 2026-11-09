@@ -8,7 +8,7 @@ sys.path.insert(0, str(ROOT / 'scripts'))
 FIX = ROOT / 'tests' / 'fixtures'
 
 from classify_thesis import advisor_vector, run  # noqa: E402
-from common import canonical_url, file_stem, fix_href, safe_url  # noqa: E402
+from common import angkatan_from_nim, canonical_url, file_stem, fix_href, safe_url  # noqa: E402
 from fetch_detail import candidates, fetch_one, slug_variants  # noqa: E402
 from crawl_list import assign_ids, parse_list_page  # noqa: E402
 from names import LecturerIndex, extract_advisor_names, load_kk, name_key  # noqa: E402
@@ -313,19 +313,26 @@ class AbstractFallback(unittest.TestCase):
     def test_abstract_rescues_thesis_without_advisor_and_keywords(self):
         recs = self._corpus()
         t = rec(999, 'Kajian tanpa petunjuk', [], [])
-        t['abstract'] = 'strategi pemasaran konsumen persaingan bisnis perusahaan organisasi budaya'
+        t['abstract'] = 'penelitian ini membahas strategi pemasaran konsumen persaingan bisnis perusahaan organisasi budaya kepemimpinan'
         out, _, _ = run(recs + [t], load_kk())
         o = [x for x in out if x['id'] == '999'][0]
         self.assertEqual(o['memberships'][0]['slug'], 'manajemen_industri')
         self.assertIn('abstract', o['memberships'][0]['signals'])
         self.assertIn('tanpa dosen & kata kunci (abstrak+judul)', o['review_reasons'])
 
-    def test_abstract_not_used_when_dosen_or_keyword_available(self):
+    def test_abstract_is_regular_signal_but_dosen_still_decides_with_agreeing_content(self):
         recs = self._corpus()
         out, _, _ = run(recs, load_kk())
         for o in out:
             if o['id'] in ('0', '20'):
-                self.assertNotIn('abstract', o['memberships'][0]['signals'])
+                self.assertIn('abstract', o['memberships'][0]['signals'])
+                self.assertNotIn('tanpa dosen & kata kunci (abstrak+judul)', o['review_reasons'])
+
+    def test_placeholder_abstracts_are_ignored(self):
+        from common import usable_abstract
+        for junk in ['P', '-', 'Abstrak bisa dilihat di filenya', 'kelestarian lingkungan', '', None]:
+            self.assertIsNone(usable_abstract(junk), junk)
+        self.assertIsNotNone(usable_abstract('kata ' * 30))
 
     def test_too_few_supported_words_gives_no_abstract_signal(self):
         recs = self._corpus()
@@ -334,6 +341,19 @@ class AbstractFallback(unittest.TestCase):
         out, _, _ = run(recs + [t], load_kk())
         o = [x for x in out if x['id'] == '999'][0]
         self.assertEqual(o['memberships'], [])
+
+
+class Angkatan(unittest.TestCase):
+    def test_decode(self):
+        self.assertEqual(angkatan_from_nim('23410056'), 2010)
+        self.assertEqual(angkatan_from_nim('23424011'), 2024)
+        self.assertEqual(angkatan_from_nim('23499001'), 1999)   # YY 70-99 -> 19YY
+        self.assertEqual(angkatan_from_nim('23489123'), 1989)
+
+    def test_non_standard_or_future_is_none(self):
+        for bad in (None, '', 'S2-758403', '758531', '2819', '23916001', '234160123'):
+            self.assertIsNone(angkatan_from_nim(bad), bad)
+        self.assertIsNone(angkatan_from_nim('23430001', today_year=2026))   # 2030 > tahun ini
 
 
 class Keywords(unittest.TestCase):

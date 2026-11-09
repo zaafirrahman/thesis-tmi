@@ -8,7 +8,7 @@ import sys
 
 from bs4 import BeautifulSoup
 
-from common import DATA, RAW, canonical_url, clean, file_stem
+from common import DATA, RAW, canonical_url, clean, file_stem, usable_abstract
 
 LABELS = {
     'penulis': 'author',
@@ -71,7 +71,7 @@ def parse_detail(html):
     if not ab:
         d = soup.find('meta', property='og:description')
         ab = clean(d['content']) if d and d.get('content') else ''
-    rec['abstract'] = ab or None
+    rec['abstract'] = usable_abstract(ab)
     return rec
 
 

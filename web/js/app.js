@@ -15,6 +15,13 @@
   // 2. Ke bawahnya kodenya SAMA PERSIS kayak punya kamu
   var GROUPS = raw.groups;
   var THESES = raw.theses;
+  THESES.forEach(function (t) {
+    var kws = (t.keywords_official || []).slice();
+    t.memberships.forEach(function (m) { kws = kws.concat(m.keywords); });
+    t._hay = [t.judul, t.author || '', (t.advisors || []).join(' '), kws.join(' ')].join(' ').toLowerCase();
+  });
+  var dataDate = document.getElementById('dataDate');
+  if (dataDate && raw.generated) dataDate.textContent = raw.generated;
   var UNCLASSIFIED = { slug: 'tidak_terklasifikasi', label: 'Tidak Terklasifikasi', abbr: 'Unclassified' };
 GROUPS.push(UNCLASSIFIED);
 var groupBySlug = {};
@@ -81,31 +88,8 @@ var TABS_GROUPS = GROUPS;
 
   // ---------- keyword classifier reference (dari SPECIALIZATIONS di script Python) ----------
   // slug di sini disesuaikan dengan slug yang dipakai di data (raw.groups), bukan slug internal script.
-  var KEYWORD_MAP = {
-    sistem_manufaktur: {
-      strong: ['manufaktur', 'manufacturing', 'assembly', 'perakitan', 'CNC', 'machining', 'casting', 'foaming', 'injection molding', 'extruder', 'tooling', 'fixture', 'jig', 'layout pabrik', 'automasi', 'otomasi', 'robot', 'robotika', 'AGV', 'conveyor', 'quality control', 'pengendalian kualitas', 'SPC', 'six sigma', 'lean manufacturing', 'TPM', 'perawatan mesin', 'OEE', 'process improvement', 'optimasi proses', 'discrete event', 'product design', 'prototype', '3D printing', 'additive manufacturing', 'supply chain', 'rantai pasok', 'logistik', 'distribusi', 'inventory', 'persediaan', 'warehouse', 'gudang', 'material handling', 'forklift', 'nesting', 'cutting', 'scheduling', 'penjadwalan', 'sequencing', 'fleet management', 'transportation', 'peta kendali', 'control chart', 'sampling plan', 'rencana sampling', 'chemical milling', 'sheet metal forming'],
-      weak: ['produksi', 'pabrik', 'industri', 'produk', 'mesin', 'maintenance', 'reliability', 'simulasi', 'lean']
-    },
-    sistem_industri_rantai_nilai: {
-      strong: ['rantai nilai', 'value chain', 'nilai tambah', 'value stream', 'kompetitif', 'competitive', 'keunggulan bersaing', 'daya saing', 'business model', 'model bisnis', 'canvas', 'BMC', 'merger', 'akuisisi', 'divestasi', 'restrukturisasi', 'ESG', 'carbon', 'emisi', 'energi terbarukan', 'EBT', 'renewable', 'life cycle assessment', 'LCA', 'daur ulang', 'recycling', 'circular economy', 'ekonomi sirkular', 'risk management', 'manajemen risiko', 'mitigasi risiko', 'resilience', 'resiliensi', 'ketahanan', 'tangguh', 'stakeholder', 'pemangku kepentingan', 'CSR', 'corporate social', 'SNI', 'sertifikasi', 'akreditasi', 'sustainability', 'berkelanjutan', 'lingkungan', 'environmental', 'komoditas', 'komoditi', 'harga komoditas', 'fluktuasi harga', 'karet', 'getah karet', 'kelapa sawit', 'sawit', 'crude palm oil', 'CPO', 'kopi', 'kakao', 'batubara', 'nikel', 'timah', 'ekspor', 'impor', 'perdagangan internasional', 'neraca perdagangan', 'harga pasar', 'harga global', 'agroindustri', 'komoditas pertanian', 'rute kendaraan', 'vehicle routing', 'lokasi fasilitas', 'facility location', 'lokasi-alokasi fasilitas', 'jaringan distribusi', 'distribution network', 'rute kapal', 'penentuan rute', 'moda transportasi', 'transportasi umum', 'angkutan umum', 'angkutan', 'pelabuhan', 'terminal', 'bandara', 'penerbangan', 'stasiun pengisian', 'kendaraan listrik', 'electric vehicle', 'depot', 'jaringan hub', 'kapal', 'pelayaran', 'petikemas', 'kontainer', 'transshipment', 'wisatawan', 'pariwisata', 'wisata', 'sektor ekonomi', 'perekonomian', 'sektor pertanian', 'agribisnis', 'perkebunan', 'koperasi', 'tarif', 'willingness to pay', 'subsidi', 'pembangunan sektor', 'kebijaksanaan pembangunan', 'harga air', 'jasa telekomunikasi', 'depo', 'vehicle flow', 'fleet vehicle', 'pickup and delivery', 'cross-docking', 'fourth party logistic', 'sampah', 'limbah', 'persampahan', 'insinerator', 'dirgantara'],
-      weak: ['strategi', 'strategic', 'pertumbuhan', 'growth', 'scaling', 'ekspansi', 'kebijakan', 'policy', 'regulasi', 'regulation', 'pemerintah', 'ekonomi', 'economic', 'GDP', 'makroekonomi', 'industri 4.0', 'transformasi digital', 'digitalisasi', 'green', 'standar', 'standard', 'ISO', 'kendaraan', 'jaringan']
-    },
-    ergonomi_rekayasa_kerja: {
-      strong: ['ergonomi', 'ergonomic', 'human factors', 'faktor manusia', 'antropometri', 'anthropometry', 'postur', 'posture', 'beban kerja', 'workload', 'beban fisik', 'physical load', 'kelelahan', 'fatigue', 'nyeri', 'pain', 'MSDs', 'musculoskeletal', 'kerja fisik', 'physical work', 'aktivitas otot', 'EMG', 'thermal', 'kebisingan', 'noise', 'getaran', 'vibration', 'pencahayaan', 'lighting', 'illumination', 'K3', 'kecelakaan', 'accident', 'hazard', 'APD', 'PPE', 'helm', 'masker', 'pelindung', 'cognitive load', 'beban kognitif', 'mental workload', 'atensi', 'persepsi', 'perception', 'biomekanika', 'biomechanics', 'kinerja manusia', 'human performance', 'shift work', 'kerja shift', 'jam kerja', 'work schedule', 'prosthesis', 'prostetik', 'kaki palsu', 'tangan palsu', 'workplace design', 'desain tempat kerja', 'workstation', 'perilaku berkendara', 'perilaku berisiko', 'berkendara', 'mengemudi', 'pengemudi', 'pengendara', 'naturalistic riding', 'naturalistic driving', 'driving behavior', 'riding behavior', 'kewaspadaan', 'kantuk', 'sleepiness', 'alertness', 'situation awareness', 'performansi mengemudi', 'masinis', 'waktu reaksi', 'reaction time'],
-      weak: ['kenyamanan', 'comfort', 'keselamatan', 'safety', 'usability', 'user experience', 'UX', 'interface', 'antarmuka', 'attention', 'pilot', 'simulator']
-    },
-    manajemen_industri: {
-      strong: ['kepemimpinan', 'leadership', 'motivasi', 'motivation', 'SDM', 'human resource', 'talenta', 'talent', 'karyawan', 'pegawai', 'KPI', 'produktivitas', 'productivity', 'inovasi', 'innovation', 'ambidexterity', 'exploration', 'exploitation', 'learning organization', 'organisasi pembelajar', 'knowledge management', 'change management', 'budaya organisasi', 'decision making', 'pengambilan keputusan', 'multi-criteria', 'AHP', 'TOPSIS', 'project management', 'manajemen proyek', 'portofolio', 'quality management', 'TQM', 'ISO 9001', 'mutu', 'supply chain management', 'vendor', 'supplier', 'pemasok', 'pembelian', 'procurement', 'pengadaan', 'kontrak', 'UMKM', 'UKM', 'usaha kecil', 'startup', 'wirausaha', 'business process', 'BPM', 'proses bisnis', 'workflow', 'agile', 'scrum', 'kanban', 'continuous improvement', 'marketing', 'pemasaran', 'brand', 'merek', 'promosi', 'ROI', 'investasi'],
-      weak: ['manajemen', 'management', 'organisasi', 'organization', 'kinerja', 'performance', 'nilai', 'values', 'adopsi', 'adoption', 'perubahan', 'transformasi', 'strategi', 'strategy', 'competitive', 'persaingan', 'digital transformation', 'transformasi digital', 'digitalisasi', 'customer', 'pelanggan', 'konsumen', 'consumer', 'client', 'service', 'layanan', 'pelayanan', 'hospitality', 'financial', 'keuangan', 'biaya', 'cost', 'MSE', 'mean squared error', 'forecasting', 'peramalan', 'prediksi']
-    },
-    sistem_informasi_keputusan: {
-      strong: ['sistem informasi', 'information system', 'teknologi informasi', 'ERP', 'enterprise resource planning', 'SAP', 'Oracle', 'CRM', 'customer relationship management', 'supply chain management system', 'database', 'basis data', 'data warehouse', 'data mining', 'big data', 'business intelligence', 'kecerdasan buatan', 'artificial intelligence', 'deep learning', 'neural network', 'CNN', 'transformer', 'chatbot', 'virtual assistant', 'NLP', 'natural language', 'blockchain', 'smart contract', 'crypto', 'e-commerce', 'marketplace', 'komputasi awan', 'IoT', 'internet of things', 'cybersecurity', 'keamanan', 'encryption', 'authentication', 'TAM', 'UTAUT', 'technology adoption', 'acceptance', 'penerimaan', 'e-government', 'telemedicine', 'e-health', 'health informatics', 'fintech', 'e-wallet', 'pembayaran digital', 'ONNX', 'model deployment', 'decision support', 'dss', 'sistem pendukung keputusan', 'multi-agent', 'intelligent agent'],
-      weak: ['IT', 'software', 'aplikasi', 'platform', 'digital', 'komputer', 'analytics', 'analitik', 'AI', 'machine learning', 'LSTM', 'mobile', 'smartphone', 'android', 'iOS', 'app', 'web', 'website', 'portal', 'cloud', 'SaaS', 'PaaS', 'IaaS', 'sensor', 'embedded', 'UX', 'UI', 'user interface', 'usability', 'user experience', 'digital transformation', 'transformasi digital', 'social media', 'media sosial', 'payment', 'inference', 'deployment']
-    }
-  };
-
   // filterType: 'all' | 'group' | 'multi' | 'pair'
-  var state = { filterType: 'all', groupSlug: null, pairSlugs: null, query: '', sort: 'no', reviewOnly: false, visible: 60 };
+  var state = { filterType: 'all', groupSlug: null, pairSlugs: null, query: '', sort: 'no', reviewOnly: false, advisor: '', visible: 60 };
 
   var totalCount = document.getElementById('totalCount');
   var multiCountEl = document.getElementById('multiCount');
@@ -239,6 +223,28 @@ var TABS_GROUPS = GROUPS;
     render();
   });
 
+  // filter dosen pembimbing
+  var advisorSelect = document.getElementById('advisorSelect');
+  var advisorCounts = {};
+  THESES.forEach(function (t) { (t.advisors || []).forEach(function (a) { advisorCounts[a] = (advisorCounts[a] || 0) + 1; }); });
+  Object.keys(advisorCounts).sort(function (a, b) {
+    return advisorCounts[b] - advisorCounts[a] || a.localeCompare(b, 'id');
+  }).forEach(function (a) {
+    var o = document.createElement('option');
+    o.value = a;
+    o.textContent = a + ' (' + advisorCounts[a] + ')';
+    advisorSelect.appendChild(o);
+  });
+  advisorSelect.addEventListener('change', function () {
+    state.advisor = advisorSelect.value;
+    state.visible = 60;
+    render();
+  });
+  document.getElementById('cardList').addEventListener('click', function (e) {
+    var b = e.target.closest('.abs-btn');
+    if (b) toggleAbstract(b);
+  });
+
   function maxScore(t) {
     return t.memberships.reduce(function (m, x) { return Math.max(m, x.score); }, 0);
   }
@@ -268,18 +274,12 @@ var TABS_GROUPS = GROUPS;
     if (state.reviewOnly) {
       list = list.filter(function (t) { return t.perlu_review; });
     }
+    if (state.advisor) {
+      list = list.filter(function (t) { return (t.advisors || []).indexOf(state.advisor) !== -1; });
+    }
     if (state.query) {
       var q = state.query;
-      list = list.filter(function (t) {
-        if (t.judul.toLowerCase().indexOf(q) !== -1) return true;
-        for (var i = 0; i < t.memberships.length; i++) {
-          var kws = t.memberships[i].keywords;
-          for (var j = 0; j < kws.length; j++) {
-            if (kws[j].toLowerCase().indexOf(q) !== -1) return true;
-          }
-        }
-        return false;
-      });
+      list = list.filter(function (t) { return t._hay.indexOf(q) !== -1; });
     }
     list = list.slice();
     if (state.sort === 'conf') {
@@ -294,14 +294,7 @@ var TABS_GROUPS = GROUPS;
 
   // ---------- keyword insight ----------
   function relevantKeywords(t) {
-    if (state.filterType === 'group') {
-      return t.memberships.filter(function (m) { return m.slug === state.groupSlug; })
-        .reduce(function (acc, m) { return acc.concat(m.keywords); }, []);
-    }
-    if (state.filterType === 'pair') {
-      return t.memberships.filter(function (m) { return state.pairSlugs.indexOf(m.slug) !== -1; })
-        .reduce(function (acc, m) { return acc.concat(m.keywords); }, []);
-    }
+    if (t.keywords_official && t.keywords_official.length) return t.keywords_official;
     return t.memberships.reduce(function (acc, m) { return acc.concat(m.keywords); }, []);
   }
   function topKeywords(list, n) {
@@ -323,18 +316,37 @@ var TABS_GROUPS = GROUPS;
     });
   }
 
-  // ---------- digilib link helpers ----------
-  function digilibSlug(title) {
-    return title
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '');
+  // ---------- abstrak (dimuat sekali, hanya saat dibuka) ----------
+  var abstractsData = null, abstractsPromise = null;
+  function loadAbstracts() {
+    if (!abstractsPromise) {
+      abstractsPromise = fetch('./data/abstracts.json')
+        .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+        .then(function (j) { abstractsData = j; return j; })
+        .catch(function (e) { abstractsPromise = null; throw e; });
+    }
+    return abstractsPromise;
   }
-  function digilibDirectUrl(title) {
-    return 'https://digilib.itb.ac.id/gdl/view_data/' + digilibSlug(title);
-  }
-  function digilibFallbackUrl(title) {
-    return 'https://www.google.com/search?q=' + encodeURIComponent('site:digilib.itb.ac.id "' + title + '"');
+  function toggleAbstract(btn) {
+    var card = btn.closest('.card');
+    var body = card.querySelector('.abs-body');
+    var no = btn.getAttribute('data-no');
+    if (!body.hidden) {
+      body.hidden = true;
+      btn.setAttribute('aria-expanded', 'false');
+      btn.querySelector('.abs-label').textContent = 'Baca abstrak';
+      return;
+    }
+    body.hidden = false;
+    btn.setAttribute('aria-expanded', 'true');
+    btn.querySelector('.abs-label').textContent = 'Tutup abstrak';
+    if (abstractsData) { body.textContent = abstractsData[no] || 'Abstrak tidak tersedia.'; return; }
+    body.textContent = 'Memuat abstrak…';
+    loadAbstracts().then(function (a) {
+      body.textContent = a[no] || 'Abstrak tidak tersedia.';
+    }).catch(function () {
+      body.textContent = 'Gagal memuat abstrak. Periksa koneksi lalu coba lagi.';
+    });
   }
 
   // ---------- group info panel ----------
@@ -358,25 +370,19 @@ var TABS_GROUPS = GROUPS;
   }
 
   function kwMatchHtml(slug) {
-    var km = KEYWORD_MAP[slug];
-    if (!km) return '';
-    var strongChips = km.strong.map(function (k) {
-      return '<span class="kwm-chip strong">' + escapeHtml(k) + '</span>';
-    }).join('');
-    var weakChips = km.weak.map(function (k) {
-      return '<span class="kwm-chip weak">' + escapeHtml(k) + '</span>';
-    }).join('');
+    var g = groupBySlug[slug];
+    if (!g || !g.ketua) return '';
+    var chips = '<span class="kwm-chip strong">' + escapeHtml(g.ketua) + ' (ketua)</span>' +
+      (g.anggota || []).map(function (n) { return '<span class="kwm-chip weak">' + escapeHtml(n) + '</span>'; }).join('');
     return '<div class="kwm-panel' + (kwMatchOpen ? ' open' : '') + '">' +
       '<button type="button" class="kwm-toggle" data-slug="' + slug + '">' +
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>' +
-        (kwMatchOpen ? 'Sembunyikan kata kunci pencocokan' : 'Lihat kata kunci pencocokan') +
+        (kwMatchOpen ? 'Sembunyikan cara klasifikasi' : 'Cara klasifikasi &amp; dosen KK') +
       '</button>' +
       '<div class="kwm-body">' +
-        '<p class="kwm-note">Ini bukan definisi resmi kelompok keilmuan &mdash; classifier otomatis cuma mencocokkan kata-kata di bawah ini yang muncul di judul. Penanda kuat lebih spesifik ke KK ini; penanda lemah lebih umum dan sering nyerempet ke kelompok lain, jadi kontribusinya ke skor lebih kecil.</p>' +
-        '<p class="kwm-section-label">Penanda kuat</p>' +
-        '<div class="kwm-chips">' + strongChips + '</div>' +
-        '<p class="kwm-section-label">Penanda lemah</p>' +
-        '<div class="kwm-chips">' + weakChips + '</div>' +
+        '<p class="kwm-note">Ini bukan penilaian resmi kelompok keilmuan. Tiap tesis diberi skor per kelompok dari empat sinyal: kelompok keilmuan <strong>dosen pembimbing</strong>, <strong>kata kunci resmi</strong> di Digilib, <strong>isi abstrak</strong>, dan kata pada judul (bobot sangat kecil). Dosen yang kelompoknya tidak tercantum eksplisit diberi bobot lebih rendah, dan bila kelompok dosen itu berbeda dari isi tesisnya, isi tesis lebih menentukan.</p>' +
+        '<p class="kwm-section-label">Dosen resmi kelompok ini</p>' +
+        '<div class="kwm-chips">' + chips + '</div>' +
       '</div>' +
     '</div>';
   }
@@ -402,8 +408,8 @@ var TABS_GROUPS = GROUPS;
       if (g.slug === UNCLASSIFIED.slug) {
         groupInfo.innerHTML =
           '<h2><span class="sw" style="background:var(--g-tidak_terklasifikasi)"></span>' + g.label + '</h2>' +
-          '<p class="desc">' + counts[g.slug].toLocaleString('id-ID') + ' judul belum berhasil dicocokkan ke kelompok manapun oleh classifier &mdash; skornya nol di semua kelompok.</p>' +
-          '<div class="legend-note">Cocok buat dicek manual: mungkin butuh kata kunci baru di classifier, atau memang topiknya lintas-disiplin di luar 5 kelompok yang ada.</div>';
+          '<p class="desc">' + counts[g.slug].toLocaleString('id-ID') + ' judul belum bisa dikelompokkan karena tidak punya sinyal sama sekali &mdash; tanpa data dosen pembimbing, kata kunci, maupun abstrak di Digilib.</p>' +
+          '<div class="legend-note">Kebanyakan adalah tesis lama yang di Digilib hanya tercatat judulnya. Cocok dicek manual.</div>';
       } else {
         groupInfo.innerHTML =
           '<h2><span class="sw" style="background:var(--g-' + g.slug + ')"></span>' + g.label + ' <span style="font-family:\'IBM Plex Mono\',monospace;font-size:0.72rem;color:var(--ink-faint);font-weight:400;">(' + g.abbr + ')</span></h2>' +
@@ -476,29 +482,45 @@ var TABS_GROUPS = GROUPS;
       var style = m.role === 'utama'
         ? 'background:var(--g-' + g.slug + ');border-color:var(--g-' + g.slug + ')'
         : 'background:transparent;color:var(--g-' + g.slug + ');border-color:var(--g-' + g.slug + ')';
-      return '<span class="mpill role-' + m.role + '" title="' + escapeHtml(g.label) + ' &middot; ' + roleLabel[m.role] + '" style="' + style + '">' +
-        g.abbr + ' &middot; ' + m.score +
+      return '<span class="mpill role-' + m.role + '" title="' + escapeHtml(g.label) + ' &middot; ' + roleLabel[m.role] + ' &middot; skor ' + m.score + '%" style="' + style + '">' +
+        g.abbr + ' &middot; ' + m.score + '%' +
         '</span>';
     }).join('');
   }
 
   function cardHtml(t) {
-    var allKw = t.memberships.reduce(function (acc, m) { return acc.concat(m.keywords); }, []);
+    var kws = (t.keywords_official && t.keywords_official.length) ? t.keywords_official :
+      t.memberships.reduce(function (acc, m) { return acc.concat(m.keywords); }, []);
     var seen = {};
     var uniqKw = [];
-    allKw.forEach(function (k) { var lk = k.toLowerCase(); if (!seen[lk]) { seen[lk] = 1; uniqKw.push(k); } });
+    kws.forEach(function (k) { var lk = k.toLowerCase(); if (!seen[lk]) { seen[lk] = 1; uniqKw.push(k); } });
     var kwChips = uniqKw.slice(0, 8).map(function (k) {
       return '<span class="chip">' + escapeHtml(k) + '</span>';
     }).join('');
-    var reviewBadge = t.perlu_review ? '<span class="review-pill">perlu ditinjau ulang</span>' : '';
-    var directUrl = digilibDirectUrl(t.judul);
-    var fallbackUrl = digilibFallbackUrl(t.judul);
-    var titleHtml = '<a class="title-link" href="' + escapeHtml(directUrl) + '" target="_blank" rel="noopener noreferrer" title="Buka di Digilib ITB (tautan tebakan, mungkin 404 untuk judul terbaru)">' + escapeHtml(t.judul) + '</a>';
-    var fallbackHtml =
-      '<a class="fallback-search" href="' + escapeHtml(fallbackUrl) + '" target="_blank" rel="noopener noreferrer" title="Link judul 404? Cari halaman ini di Digilib lewat Google">' +
-        '<span>Go to paper</span>' +
-        '<svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg>' +
-      '</a>';
+    var reasons = (t.review_reasons || []).join('; ');
+    var reviewBadge = t.perlu_review
+      ? '<span class="review-pill" title="' + escapeHtml(reasons || 'Klasifikasi belum tegas') + '">perlu ditinjau ulang</span>' : '';
+    var titleHtml = t.url
+      ? '<a class="title-link" href="' + escapeHtml(t.url) + '" target="_blank" rel="noopener noreferrer" title="Buka di Digilib ITB">' + escapeHtml(t.judul) + '</a>'
+      : escapeHtml(t.judul);
+    var metaParts = [];
+    if (t.author) metaParts.push('<span>' + escapeHtml(t.author) + '</span>');
+    if (t.angkatan) metaParts.push('<span title="Angkatan masuk, dibaca dari NIM">Angkatan ' + t.angkatan + '</span>');
+    if (t.year) metaParts.push('<span title="Tahun terbit di Digilib">Terbit ' + t.year + '</span>');
+    if (t.advisors && t.advisors.length) {
+      metaParts.push('<span class="adv">Pembimbing: ' + t.advisors.map(escapeHtml).join('; ') + '</span>');
+    }
+    var metaHtml = metaParts.length ? '<div class="meta-line">' + metaParts.join('') + '</div>' : '';
+    var absRow = t.has_abstract
+      ? '<div class="abs-row">' +
+          '<button type="button" class="abs-btn" data-no="' + escapeHtml(t.no) + '" aria-expanded="false">' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+              '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><polyline points="14 3 14 8 19 8"/>' +
+              '<line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/>' +
+            '</svg>' +
+            '<span class="abs-label">Baca abstrak</span>' +
+          '</button>' +
+        '</div>' : '';
     return '<article class="card">' +
       '<div class="spine">' + spineHtml(t) + '</div>' +
       '<div class="body">' +
@@ -507,7 +529,10 @@ var TABS_GROUPS = GROUPS;
           '<span class="membership-pills">' + membershipPills(t) + reviewBadge + '</span>' +
         '</div>' +
         '<h3>' + titleHtml + '</h3>' +
-        '<div class="tagrow">' + kwChips + fallbackHtml + '</div>' +
+        metaHtml +
+        '<div class="tagrow">' + kwChips + '</div>' +
+        absRow +
+        (t.has_abstract ? '<div class="abs-body" hidden></div>' : '') +
       '</div>' +
     '</article>';
   }

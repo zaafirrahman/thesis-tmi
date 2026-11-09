@@ -19,14 +19,16 @@ import re
 import sys
 from collections import Counter, defaultdict
 
-from common import DATA
+from common import DATA, usable_abstract
 from names import LecturerIndex, extract_advisor_names, load_aliases, load_extra, load_kk, name_key
 from title_keywords import score_title
 
 # ---- konfigurasi (silakan di-tuning) --------------------------------------
-WEIGHTS = {'dosen': 0.50, 'keyword': 0.35, 'title': 0.15,
-           'abstract': 0.35}   # abstrak HANYA dipakai bila tesis tak punya sinyal dosen & kata kunci
-SECOND_MIN = 0.25        # skor minimum KK kedua
+# Bobot hasil kalibrasi pada data nyata (lihat README, bagian "Kalibrasi"): akurasi sinyal konten
+# terhadap KK dosen resmi 64% (kata kunci .35 + judul .15) -> ~75% (kata kunci + abstrak, judul nyaris 0).
+# Rasio konten kata kunci : abstrak : judul = 1 : 2.5 : 0.05; total konten tetap 0.5 (= bobot dosen).
+WEIGHTS = {'dosen': 0.50, 'keyword': 0.14, 'abstract': 0.35, 'title': 0.01}
+SECOND_MIN = 0.20        # skor minimum KK kedua (dikalibrasi ulang setelah bobot judul diturunkan)
 REVIEW_MARGIN = 0.15     # selisih skor 1-2 di bawah ini -> perlu_review
 CONFLICT_FACTOR = 0.5    # dosen ber-yakin<1 yang KK-nya BEDA dari konten tesis: bobot dosen x ini
 KW_MIN_SUPPORT = 1.0     # minimal "dukungan" dari tesis lain agar keyword dipakai
@@ -187,7 +189,9 @@ def abstract_signal(rec, prof):
             agg[k] += wgt * (other[k] + KW_PRIOR * prof.prior[k]) / (n + KW_PRIOR)
     if used < ABS_MIN_WORDS or wsum <= 0:
         return None
-    return normalize(agg)
+    # normalisasi bias ukuran kelas (SM terbesar): bagi dengan prior KK. Pada abstrak ini menaikkan
+    # akurasi 52% -> 65%; pada kata kunci justru menurunkan, jadi hanya dipakai di sini.
+    return normalize({k: v / prof.prior[k] for k, v in normalize(agg).items()})
 
 
 def prepare(records, lecturers):
@@ -199,7 +203,7 @@ def prepare(records, lecturers):
         for kw in r['keywords']:
             for u, w in units_of(kw):
                 units[u] = max(w, units.get(u, 0))
-        abs_words = abstract_words(r.get('abstract'))
+        abs_words = abstract_words(usable_abstract(r.get('abstract')))
         rels = [lecturers.reliability(key) for _raw, key, slugs, _m in matches if slugs]
         recs.append({**r, 'advisors': advisors, 'matches': matches, 'D': advisor_vector(matches),
                      'R': (sum(rels) / len(rels)) if rels else 1.0, 'units': units,
@@ -219,10 +223,9 @@ def classify_one(rec, prof):
     if title:
         sig['title'] = normalize(title)
 
-    if 'dosen' not in sig and 'keyword' not in sig:      # titik lemah: pakai abstrak sebagai cadangan
-        avec = abstract_signal(rec, prof)
-        if avec:
-            sig['abstract'] = avec
+    avec = abstract_signal(rec, prof)
+    if avec:
+        sig['abstract'] = avec
 
     reasons = []
     if rec['advisors'] and not rec['D'] and any(m[3] == 'unmapped' for m in rec['matches']):
@@ -232,9 +235,9 @@ def classify_one(rec, prof):
     if not rec['keywords']:
         reasons.append('kata kunci kosong')
 
-    # skor berbasis KONTEN saja (kata kunci + judul, tanpa dosen): dipakai untuk menyarankan
+    # skor berbasis KONTEN saja (kata kunci + abstrak + judul, tanpa dosen): dipakai untuk menyarankan
     # KK dosen yang belum ter-map
-    cw = {k: WEIGHTS[k] for k in ('keyword', 'title') if k in sig}
+    cw = {k: WEIGHTS[k] for k in ('keyword', 'abstract', 'title') if k in sig}
     content = {}
     if cw:
         ctot = sum(cw.values())
@@ -270,7 +273,7 @@ def classify_one(rec, prof):
         reasons.append('skor KK 1 dan 2 berdekatan')
     if set(sig) == {'title'}:
         reasons.append('hanya sinyal judul')
-    if 'abstract' in sig:
+    if 'abstract' in sig and 'dosen' not in sig and 'keyword' not in sig:
         reasons.append('tanpa dosen & kata kunci (abstrak+judul)')
 
     adv_by_kk = defaultdict(list)
