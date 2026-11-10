@@ -414,6 +414,24 @@ class SiteGuards(unittest.TestCase):
         self.assertIn('**7**', md); self.assertIn('+2', md); self.assertIn('J5', md); self.assertIn('Dosen Baru', md)
 
 
+class RepoHygiene(unittest.TestCase):
+    def test_gitignore_does_not_swallow_web_data(self):
+        lines = [l.strip() for l in (ROOT / '.gitignore').read_text(encoding='utf-8').splitlines()]
+        for bad in ('data', 'data/', '**/data', '**/data/'):
+            self.assertNotIn(bad, lines, f'"{bad}" juga mengabaikan web/data/ yang harus di-commit; pakai "/data/"')
+        self.assertIn('/data/', lines)
+
+    def test_git_does_not_ignore_web_data(self):
+        import shutil
+        import subprocess
+        if not shutil.which('git'):
+            self.skipTest('git tidak tersedia')
+        r = subprocess.run(['git', 'check-ignore', '-q', 'web/data/thesis-data.json'], cwd=ROOT)
+        if r.returncode == 128:
+            self.skipTest('bukan repo git')
+        self.assertEqual(r.returncode, 1, 'web/data/thesis-data.json diabaikan oleh .gitignore')
+
+
 class Keywords(unittest.TestCase):
     def test_trailing_period_and_blanks(self):
         self.assertEqual(split_keywords('Pembelajaran, UMKM Fesyen,  Learning Management System. ,'),

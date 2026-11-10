@@ -19,6 +19,10 @@ jobs:
         with:
           python-version: '3.12'
           cache: pip
+      - name: web/data harus ada di repo
+        run: |
+          git ls-files --error-unmatch web/data/thesis-data.json web/data/abstracts.json \
+            || (echo "::error::web/data/*.json belum ter-commit. Cek .gitignore (harus /data/, bukan data/)"; exit 1)
       - run: pip install -r requirements.txt
       - run: python -m unittest discover -s tests
       - name: Sintaks JavaScript

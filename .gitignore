@@ -1,5 +1,6 @@
 __pycache__/
 *.pyc
 .venv/
-# Output scraping & klasifikasi (bisa dibuat ulang dari scripts/)
-data/
+# Hasil scraping & klasifikasi, HANYA di root repo (bisa dibuat ulang dari scripts/).
+# Jangan tulis "data/" tanpa garis miring depan: itu juga mengabaikan web/data/ yang HARUS di-commit.
+/data/

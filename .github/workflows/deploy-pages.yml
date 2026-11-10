@@ -32,6 +32,10 @@ jobs:
         run: |
           python3 - <<'PY'
           import json, os
+          for f in ('thesis-data.json', 'abstracts.json'):
+              assert os.path.exists('web/data/' + f), (
+                  'web/data/' + f + ' tidak ada di repo. Penyebab umum: .gitignore mengabaikan "data/" '
+                  '(harus "/data/"). Perbaiki lalu: git add web/data')
           d = json.load(open('web/data/thesis-data.json', encoding='utf-8'))
           a = json.load(open('web/data/abstracts.json', encoding='utf-8'))
           assert len(d['theses']) > 0, 'thesis-data.json kosong'
