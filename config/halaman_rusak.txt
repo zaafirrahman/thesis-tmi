@@ -1,0 +1,44 @@
+# Halaman detail Digilib yang membalas error 500 di SEMUA varian URL (rusak di sisi server Digilib).
+# fetch_detail.py melewatinya agar tidak membuang ~300 request tiap kali jalan; tesisnya tetap masuk
+# katalog memakai data dari halaman list (judul, penulis, dospem).
+# Kalau Digilib sudah memperbaikinya: jalankan  python scripts/fetch_detail.py --retry-bad
+# lalu hapus id yang berhasil dari file ini. Satu id per baris, '#' = komentar.
+pengembangan-model-intensi-penggunaan-helm-dengan-mengintegrasikan-theory-of-planned-behavior-classical-deterrence-theory-dan-homel's-model
+hubungan-kausalitas-granger-antara-utang-luar-negeri-·dengan-pertumbuhan-ekonomi-dan-defisit-yang-terjadi-di-indonesia-periode-1989-2000
+international-students’-cognitive-load-in-learning-through-a-foreign-language-of-instruction-a-case-of-learning-using-bahasa-indonesia
+-performance-analysis-of-indonesia's-manufacturing-sector-with-data-envelopment-analysis-and-growth-accounting
+the-evaluation-of-process-tolerance-design-by-considering-the-expected-utility-value-using-hurwicz's-criterion
+-performance-analysis-of-indonesiaã‚a’s-manufacturing-sector-with-data-envelopment-analysis-and-growth-accounting
+65279nci-acceptance-sampling-plan-double-sampling-plan-by-attributes-zero--poisson-industri-makanan-
+pengembangan-model-servqual-untuk-tingkat-pendidikan-menengah-dan-penerapannya-dengan-integrasi-servqual-model-kano-dan-qfd-studi-kasus-sma-'z'-bandung
+analisis-kontribusi-teknologi-pada-industri-[studi-kasus-industri-kecil-dan-menengah-ikm-komponen-elektronika]
+analisis-koordinasi-studi-kasus-pt-x
+penggunaan-proses-hirarki-analitik-pha-dalam-pembobotan-proyek-apbd-tingkat-i-jawa-barat-tahun-anggaran-19961997-studi-kasus-sektor-kesehatan-kesejahteraan-sosial-peranan-wanita-anak-dan-remaja
+evaluasi-atas-bauran-pemasaran-studi-kasus-pada-harian-ekonomi-isb
+rancangan-awal-model-penerapan-sertifikat-wakaf-tunai-sebagai-suatu-instrumen-alternatif-pengentasan-kemiskinan-di-indonesia-dengan-metodologi-system-dynamics
+mempelajari-sistem-kerjasama-produksi-untuk-mendapatkan-biaya-produksi-minimum-pada-perusahaan-manufaktur
+evaluasi-harga-air-dalam-kerjasama-operasi-antara-pdam-kab-dati-ii-tangerang-dengan-pt-tirta-cisadane-dan-pdam-dki-jakarta-di-instalasi-air-minum-cisadane-serpong
+optimasi-pelayanan-pendaratan-pesawat-udara-dengan-model-antrian-m2g21-di-bandar-udara-adisumarmo-surakarta
+analisis-peluang-dan-strategi-pemasaran-pesawat-terbang-n250-100-pt-industri-pesawat-terbang-nusantara~302ab6
+analisis-peluang-dan-strategi-pemasaran-pesawat-terbang-n250-100-pt-industri-pesawat-terbang-nusantara~187800
+merancang-arsitektur-sistem-informasi-pengendalian-biaya-produks1-stdi-di-pt-inti-bandung
+analisis-dan-perbaikan-sistem-kerja-dalam-proses-permesinan
+perencanaan-dan-implementasi-akuisisi-data-temperatur
+identifikasi-dimensi-dalam-diagnostik-usaha-yang-dapat-digunakan-untuk-merumuskan-strategi-perusahaan-dari-sektor-industri-kecil
+analisis-tarif-gas-bumi-berdasarkan-willingness-to-pay
+model-penyediaan-dana-cadangan-kontingensi-investasi-asuransi-untuk-banyaknya-klaim-berdistribusi-binomial
+perumusan-kriteria-bank-'terpopuler-berdasarkan-faktor-faktor-kesadaran-merk-nasabah
+analisis-atribut-layanan-internet-service-provider-isp-yang-dianggap-penting-oleh-konsumen-pengguna-internet
+analisis-kualitas-pelayanan-ditinjau-dari-sudut-pandang-pasien-rawat-1nap-studi-kasus-di-rumah-sakit-x
+analisa-konsistensi-hirarki-borang-ban-pt-dengan-data-lapangan-dan-pengembangan-perangkat-lunaknyastudi-kasus-borang-ban-pt-s1-19981999
+studi-perbandingan-metoda-sampel-berukuran-tetap-dan-metoda-berurutan-law-dan-carson-pada-simulasi-keadaan-mantap-sistem-antrian-mm1
+pengaruh-lingkungan-terhadap-organisasi-berdasarkan-teori-lawrence-lorsch-pada-pt-i-r-t-i-jakarta-setelah-hapusnya-perjudian
+penerapan-simultan-engineering-pada-pengembangan-konsep-produk-yang-berorientasi-pada-perbaikan-qfd
+analisis-kandungan-teknologi-terhadap-performansi-bisnis-industri-skala-kecil-studi-kasus-industri-kecil-sektor-logam-bandung-
+model-penjadwalan-pemetikan-dengan-pendekatan-programa-dinamis-minimasi-biaya-pemetikan-studi-kasus-pada-perkebunan-ciater-pt-perkebunan-nusantara-viii-
+pengukuran-kualitas-pelayanan-perusahaan-daerah-air-minum-studi-kasus-pdam-kabupaten-bandung-cabang-cimahi-
+pengembangan-model-indeks-potensi-mahasiswa-sebasai-dasar-pengambilan-keputusan-perpanjangan-batas-waktu-studi-studi-kasus-mahasiswa-diploma-iii-di-stmik-likmi
+kajian-terhadap-perilaku-belajar-gugus-kendali-mutu-ditinjau-dar1-konsep-perilaku-belajar-organisasi
+perbandingan-algoritma-simulasi-paralel-konservatif-dan-algoritma-simulasi-sekuensial-pada-sistem-antrian-
+pengembangan-model-penjadwalan-batch-sumber-serentak-untuk-system-produksi-flow-shop
+pengembangan-sistem-informasi-perencanaan-dan-pengendalian-produksi

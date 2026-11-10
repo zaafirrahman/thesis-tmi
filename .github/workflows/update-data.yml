@@ -1,0 +1,100 @@
+# Memperbarui data dari Digilib ITB, lalu membuka Pull Request berisi perubahan web/data/.
+# Situs BARU berubah setelah PR itu kamu merge (merge memicu deploy-pages.yml).
+name: Perbarui data tesis
+
+on:
+  schedule:
+    - cron: '0 2 1 */2 *'     # tgl 1 tiap 2 bulan (Jan, Mar, Mei, Jul, Sep, Nov), 02:00 UTC = 09:00 WIB
+  workflow_dispatch:
+    inputs:
+      refetch_all:
+        description: 'Unduh ulang SEMUA halaman detail (abaikan cache, ±45 menit)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: update-data
+  cancel-in-progress: false
+
+env:
+  PYTHONUNBUFFERED: '1'
+  PYTHONIOENCODING: utf-8
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Tes kode (pastikan pipeline utuh)
+        run: python -m unittest discover -s tests
+
+      # Cache halaman detail: hanya tesis BARU yang diunduh. Cache GitHub dibuang bila 7 hari tak dipakai,
+      # jadi pada jadwal 2 bulanan biasanya semua halaman diunduh ulang (±45 menit); itu normal.
+      - name: Pulihkan cache halaman detail
+        uses: actions/cache/restore@v4
+        with:
+          path: data/raw
+          key: raw-${{ github.run_id }}
+          restore-keys: ${{ inputs.refetch_all && 'tanpa-cache-' || 'raw-' }}
+
+      - name: 1. Crawl daftar tesis (selalu segar)
+        run: python scripts/crawl_list.py --refresh
+
+      - name: 2. Unduh halaman detail
+        run: python scripts/fetch_detail.py
+
+      - name: Simpan cache halaman detail
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: data/raw
+          key: raw-${{ github.run_id }}
+
+      - name: 3. Parse
+        run: python scripts/parse_detail.py
+
+      - name: 4. Klasifikasi
+        run: python scripts/classify_thesis.py
+
+      - name: 5. Bangun data situs
+        run: python scripts/build_site.py
+
+      - name: 6. Pengaman + ringkasan (memblokir bila data tampak rusak)
+        run: python scripts/check_data.py
+
+      - name: Simpan log untuk pemeriksaan
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: log-pembaruan
+          path: |
+            data/unmapped_advisors.txt
+            data/failed.txt
+            data/pr_body.md
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Buka Pull Request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: data/pembaruan
+          delete-branch: true
+          add-paths: |
+            web/data/**
+            web/sw.js
+          commit-message: 'Perbarui data tesis dari Digilib'
+          title: 'Perbarui data tesis dari Digilib'
+          body-path: data/pr_body.md

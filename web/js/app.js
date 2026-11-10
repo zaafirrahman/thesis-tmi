@@ -511,16 +511,14 @@ var TABS_GROUPS = GROUPS;
       metaParts.push('<span class="adv">Pembimbing: ' + t.advisors.map(escapeHtml).join('; ') + '</span>');
     }
     var metaHtml = metaParts.length ? '<div class="meta-line">' + metaParts.join('') + '</div>' : '';
-    var absRow = t.has_abstract
-      ? '<div class="abs-row">' +
-          '<button type="button" class="abs-btn" data-no="' + escapeHtml(t.no) + '" aria-expanded="false">' +
-            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
-              '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><polyline points="14 3 14 8 19 8"/>' +
-              '<line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/>' +
-            '</svg>' +
-            '<span class="abs-label">Baca abstrak</span>' +
-          '</button>' +
-        '</div>' : '';
+    var absBtn = t.has_abstract
+      ? '<button type="button" class="abs-btn" data-no="' + escapeHtml(t.no) + '" aria-expanded="false">' +
+          '<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+            '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><polyline points="14 3 14 8 19 8"/>' +
+            '<line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/>' +
+          '</svg>' +
+          '<span class="abs-label">Baca abstrak</span>' +
+        '</button>' : '';
     return '<article class="card">' +
       '<div class="spine">' + spineHtml(t) + '</div>' +
       '<div class="body">' +
@@ -530,8 +528,7 @@ var TABS_GROUPS = GROUPS;
         '</div>' +
         '<h3>' + titleHtml + '</h3>' +
         metaHtml +
-        '<div class="tagrow">' + kwChips + '</div>' +
-        absRow +
+        '<div class="tagrow">' + kwChips + absBtn + '</div>' +
         (t.has_abstract ? '<div class="abs-body" hidden></div>' : '') +
       '</div>' +
     '</article>';

@@ -4,7 +4,7 @@ Tiap tesis dicoba lewat beberapa varian URL (asli dari list, kanonik, trailing s
 dan versi ter-encode) karena sebagian tesis lama hanya terbuka lewat salah satunya.
 Entri ganda persis (duplicate_of) dilewati.
 
-Pakai:  python scripts/fetch_detail.py [--limit N]
+Pakai:  python scripts/fetch_detail.py [--limit N] [--retry-bad]
 """
 import argparse
 import json
@@ -12,7 +12,7 @@ import re
 import sys
 import time
 
-from common import DATA, RAW, file_stem, new_session, safe_url, try_get
+from common import CONFIG, DATA, RAW, file_stem, new_session, safe_url, try_get
 
 
 def slug_variants(url):
@@ -41,6 +41,16 @@ def candidates(it):
     return out
 
 
+def load_known_bad(path=None):
+    """Id halaman yang diketahui rusak di Digilib (config/halaman_rusak.txt)."""
+    p = path or CONFIG / 'halaman_rusak.txt'
+    try:
+        lines = open(p, encoding='utf-8').read().splitlines()
+    except FileNotFoundError:
+        return set()
+    return {l.split('#', 1)[0].strip() for l in lines if l.split('#', 1)[0].strip()}
+
+
 def looks_like_detail(html):
     return bool(html) and 'og:title' in html
 
@@ -61,12 +71,15 @@ def fetch_one(session, it, delay=1.0):
     return None, log
 
 
-def main(limit=None):
+def main(limit=None, retry_bad=False):
     list_path = DATA / 'list.jsonl'
     if not list_path.exists():
         sys.exit('data/list.jsonl belum ada. Jalankan crawl_list.py dulu.')
     items = [json.loads(l) for l in open(list_path, encoding='utf-8')]
     items = [it for it in items if not it.get('duplicate_of')]
+    bad = set() if retry_bad else load_known_bad()
+    skipped_bad = sum(1 for it in items if it['id'] in bad)
+    items = [it for it in items if it['id'] not in bad]
     RAW.mkdir(parents=True, exist_ok=True)
     session = new_session()
     failed, done = [], 0
@@ -86,11 +99,13 @@ def main(limit=None):
         note = '' if log == ['200'] else f'  (berhasil di varian ke-{len(log)})'
         print(f"[{it['no']}/{len(items)}] {it['id'][:60]}{note}")
     cached = sum(1 for it in items if (RAW / f"{file_stem(it['id'])}.html").exists())
-    print(f'Selesai. Terunduh baru: {done}. Total di cache: {cached}/{len(items)}.')
+    print(f'Selesai. Terunduh baru: {done}. Total di cache: {cached}/{len(items)}.'
+          + (f' Dilewati (diketahui rusak, config/halaman_rusak.txt): {skipped_bad}.' if skipped_bad else ''))
     fp = DATA / 'failed.txt'
     if failed:
         fp.write_text('\n'.join('\t'.join(row) for row in failed), encoding='utf-8')
         print(f'{len(failed)} gagal di semua varian URL -> data/failed.txt (id, href asli, status).')
+        print('Kalau konsisten 500, salin id-nya ke config/halaman_rusak.txt agar dilewati lain kali.')
     elif fp.exists():
         fp.unlink()  # jangan menyisakan daftar gagal yang sudah basi
 
@@ -98,4 +113,6 @@ def main(limit=None):
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
     ap.add_argument('--limit', type=int, default=None, help='unduh maksimal N halaman baru')
-    main(ap.parse_args().limit)
+    ap.add_argument('--retry-bad', action='store_true', help='coba lagi halaman di config/halaman_rusak.txt')
+    a = ap.parse_args()
+    main(a.limit, a.retry_bad)

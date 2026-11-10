@@ -9,7 +9,9 @@ FIX = ROOT / 'tests' / 'fixtures'
 
 from classify_thesis import advisor_vector, run  # noqa: E402
 from common import angkatan_from_nim, canonical_url, file_stem, fix_href, safe_url  # noqa: E402
-from fetch_detail import candidates, fetch_one, slug_variants  # noqa: E402
+from build_site import bump_sw_cache  # noqa: E402
+from check_data import compare, problems, summary  # noqa: E402
+from fetch_detail import candidates, fetch_one, load_known_bad, slug_variants  # noqa: E402
 from crawl_list import assign_ids, parse_list_page  # noqa: E402
 from names import LecturerIndex, extract_advisor_names, load_kk, name_key  # noqa: E402
 from parse_detail import parse_detail, split_keywords  # noqa: E402
@@ -354,6 +356,62 @@ class Angkatan(unittest.TestCase):
         for bad in (None, '', 'S2-758403', '758531', '2819', '23916001', '234160123'):
             self.assertIsNone(angkatan_from_nim(bad), bad)
         self.assertIsNone(angkatan_from_nim('23430001', today_year=2026))   # 2030 > tahun ini
+
+
+class KnownBad(unittest.TestCase):
+    def test_load_known_bad_ignores_comments_and_blank(self):
+        import tempfile
+        with tempfile.NamedTemporaryFile('w', suffix='.txt', delete=False, encoding='utf-8') as f:
+            f.write('# komentar\n\nid-satu\n  id-dua   # catatan\n#id-tiga\n')
+        self.assertEqual(load_known_bad(f.name), {'id-satu', 'id-dua'})
+
+    def test_missing_file_is_empty(self):
+        self.assertEqual(load_known_bad('/tidak/ada.txt'), set())
+
+    def test_shipped_list_matches_failed_ids(self):
+        bad = load_known_bad()
+        self.assertGreaterEqual(len(bad), 1)
+        self.assertIn('analisis-koordinasi-studi-kasus-pt-x', bad)
+
+
+class SiteGuards(unittest.TestCase):
+    @staticmethod
+    def site(n, abstracts=None, review=0):
+        abstracts = n if abstracts is None else abstracts
+        return {'theses': [{'url': f'u{i}', 'judul': f'J{i}', 'has_abstract': i < abstracts,
+                            'perlu_review': i < review} for i in range(n)]}
+
+    def test_sw_cache_bump_keeps_version_and_replaces_hash(self):
+        a = "x\nconst CACHE_NAME = 'katalog-tmi-v5';\ny"
+        b = bump_sw_cache(a, 'abcdef12')
+        self.assertIn("'katalog-tmi-v5-abcdef12'", b)
+        self.assertIn("'katalog-tmi-v5-00112233'", bump_sw_cache(b, '00112233'))
+        self.assertEqual(bump_sw_cache(b, 'abcdef12'), b)      # idempoten
+
+    def test_growth_is_ok(self):
+        old, new = self.site(100), self.site(105)
+        c = compare(new, old)
+        self.assertEqual((len(c['added']), len(c['removed'])), (5, 0))
+        self.assertEqual(problems(new, c), [])
+
+    def test_collapsed_crawl_is_blocked(self):
+        old, new = self.site(1000), self.site(700)
+        self.assertTrue(any('jumlah tesis turun' in p for p in problems(new, compare(new, old))))
+
+    def test_lost_abstracts_is_blocked(self):
+        old, new = self.site(1000, abstracts=900), self.site(1000, abstracts=500)
+        self.assertTrue(any('abstrak turun' in p for p in problems(new, compare(new, old))))
+
+    def test_missing_url_is_blocked_and_no_baseline_is_lenient(self):
+        new = self.site(10); new['theses'][3]['url'] = ''
+        self.assertTrue(any('tanpa judul/url' in p for p in problems(new, compare(new, None), have_old=False)))
+        ok = self.site(10)
+        self.assertEqual(problems(ok, compare(ok, None), have_old=False), [])
+
+    def test_summary_mentions_counts_and_new_titles(self):
+        old, new = self.site(5), self.site(7)
+        md = summary(compare(new, old), [], ['3  - "Dosen Baru"'])
+        self.assertIn('**7**', md); self.assertIn('+2', md); self.assertIn('J5', md); self.assertIn('Dosen Baru', md)
 
 
 class Keywords(unittest.TestCase):

@@ -7,7 +7,9 @@ thesis-data.json : groups (+ daftar dosen resmi tiap KK) dan theses[] dengan
                    keywords_official, has_abstract, perlu_review, review_reasons, memberships.
 abstracts.json   : {no: teks abstrak}, dimuat web hanya saat abstrak dibuka.
 """
+import hashlib
 import json
+import re
 import sys
 from datetime import date
 
@@ -18,6 +20,14 @@ from names import KK_META, LecturerIndex, load_aliases, load_extra, load_kk, nam
 def short(name):
     """'Prof. Dr. Rajesri Govindaraju, S.T., M.T.' -> 'Prof. Dr. Rajesri Govindaraju' (tanpa gelar belakang)."""
     return ' '.join(name.split(',', 1)[0].split()).strip(' .') or name
+
+
+def bump_sw_cache(sw_text, data_hash):
+    """sw.js: 'katalog-tmi-v5' -> 'katalog-tmi-v5-<hash data>'. Tiap data berubah, nama cache berubah,
+    sehingga pengunjung lama otomatis membuang cache lama. Versi 'vN' tetap dinaikkan manual
+    bila app.js/CSS berubah."""
+    return re.sub(r"const CACHE_NAME = 'katalog-tmi-(v\d+)(?:-[0-9a-f]{8})?';",
+                  lambda m: f"const CACHE_NAME = 'katalog-tmi-{m.group(1)}-{data_hash}';", sw_text, count=1)
 
 
 def main():
@@ -75,11 +85,26 @@ def main():
         })
     out = ROOT / 'web' / 'data' / 'thesis-data.json'
     out.parent.mkdir(parents=True, exist_ok=True)
+    generated = date.today().isoformat()
+    if out.exists():                       # isi sama -> pertahankan tanggal lama (tidak ada diff palsu)
+        try:
+            prev = json.load(open(out, encoding='utf-8'))
+            if prev.get('groups') == groups and prev.get('theses') == theses:
+                generated = prev.get('generated', generated)
+        except (ValueError, OSError):
+            pass
     with open(out, 'w', encoding='utf-8') as f:
-        json.dump({'generated': date.today().isoformat(), 'groups': groups, 'theses': theses},
+        json.dump({'generated': generated, 'groups': groups, 'theses': theses},
                   f, ensure_ascii=False, separators=(',', ':'))
     with open(out.parent / 'abstracts.json', 'w', encoding='utf-8') as f:
-        json.dump(abstracts, f, ensure_ascii=False, separators=(',', ':'))
+        json.dump(abstracts, f, ensure_ascii=False, separators=(',', ':'), sort_keys=True)
+    h = hashlib.sha1(json.dumps([groups, theses, abstracts], sort_keys=True, ensure_ascii=False).encode('utf-8')).hexdigest()[:8]
+    sw = ROOT / 'web' / 'sw.js'
+    if sw.exists():
+        old = sw.read_text(encoding='utf-8')
+        new = bump_sw_cache(old, h)
+        if new != old:
+            sw.write_text(new, encoding='utf-8')
     print(f'{len(theses)} tesis -> {out}')
     print(f'{len(abstracts)} abstrak -> {out.parent / "abstracts.json"}')
 

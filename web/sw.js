@@ -1,4 +1,4 @@
-const CACHE_NAME = 'katalog-tmi-v3';
+const CACHE_NAME = 'katalog-tmi-v5-22441a8d';
 const CORE_ASSETS = [
   './',
   'index.html',
